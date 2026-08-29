@@ -1,0 +1,6 @@
+{
+  "name": "EduStay Portal",
+  "description": "Comprehensive hostel and student accommodation management system featuring student/admin dashboards, room allocation, complaint tracking, and fee management.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
