@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from "react";
 import {
   BedDouble,
   Bell,
@@ -10,200 +10,208 @@ import {
   UserRound,
   Save,
   Pencil,
-} from 'lucide-react'
-import { useNavigate } from 'react-router-dom'
-import { supabase } from '../lib/supabase'
-import '../styles/Dashboard.css'
+} from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import { supabase } from "../lib/supabase";
+import "../styles/Dashboard.css";
 
 type ActivePage =
-  | 'overview'
-  | 'complaints'
-  | 'fees'
-  | 'profile'
+  | "overview"
+  | "complaints"
+  | "fees"
+  | "profile";
 
 type Complaint = {
-  id: number
-  title: string
-  status: 'Open' | 'Resolved'
-  created_at: string
-}
+  id: number;
+  title: string;
+  status: "Open" | "Resolved";
+  created_at: string;
+};
 
 type Room = {
-  id: number
-  room_number: string
-  floor: number
-  capacity: number
-  occupied: number
-  status: 'Available' | 'Full' | 'Maintenance'
-}
+  id: number;
+  room_number: string;
+  floor: number;
+  capacity: number;
+  occupied: number;
+  status: "Available" | "Full" | "Maintenance";
+};
 
 type RoomMember = {
-  id: string
-  full_name: string
-  email: string
-}
+  id: string;
+  full_name: string;
+  email: string;
+};
 
 type RoomAllocation = {
-  room_id: number
-  student_id: string
-}
+  room_id: number;
+  student_id: string;
+};
 
 type Fee = {
-  id: number
-  amount: number
-  due_date: string
-  status: 'Pending' | 'Paid' | 'Overdue'
-  payment_date: string | null
-  description: string | null
-  created_at: string
-}
+  id: number;
+  amount: number;
+  due_date: string;
+  status: "Pending" | "Paid" | "Overdue";
+  payment_date: string | null;
+  description: string | null;
+  created_at: string;
+};
 
 type Profile = {
-  id: string
-  full_name: string
-  email: string
-  role: string
-  created_at: string
-  phone: string | null
-  course: string | null
-  year: string | number | null
-  guardian_name: string | null
-  guardian_phone: string | null
-}
+  id: string;
+  full_name: string;
+  email: string;
+  role: string;
+  created_at: string;
+  phone: string | null;
+  course: string | null;
+  year: number | string | null;
+  guardian_name: string | null;
+  guardian_phone: string | null;
+};
 
 type ProfileForm = {
-  full_name: string
-  phone: string
-  course: string
-  year: string
-  guardian_name: string
-  guardian_phone: string
-}
+  full_name: string;
+  phone: string;
+  course: string;
+  year: string;
+  guardian_name: string;
+  guardian_phone: string;
+};
 
 function Dashboard() {
-  const navigate = useNavigate()
+  const navigate = useNavigate();
 
   const [active, setActive] =
-    useState<ActivePage>('overview')
+    useState<ActivePage>("overview");
 
-  // ==================================================
+  // =========================================================
   // COMPLAINTS
-  // ==================================================
+  // =========================================================
 
   const [complaints, setComplaints] =
-    useState<Complaint[]>([])
+    useState<Complaint[]>([]);
 
   const [loadingComplaints, setLoadingComplaints] =
-    useState(true)
+    useState(true);
 
   const [addingComplaint, setAddingComplaint] =
-    useState(false)
+    useState(false);
 
-  // ==================================================
+  // =========================================================
   // ROOM
-  // ==================================================
+  // =========================================================
 
   const [room, setRoom] =
-    useState<Room | null>(null)
+    useState<Room | null>(null);
 
   const [roomMembers, setRoomMembers] =
-    useState<RoomMember[]>([])
+    useState<RoomMember[]>([]);
 
   const [loadingRoom, setLoadingRoom] =
-    useState(true)
+    useState(true);
 
-  // ==================================================
+  // =========================================================
   // FEES
-  // ==================================================
+  // =========================================================
 
   const [fees, setFees] =
-    useState<Fee[]>([])
+    useState<Fee[]>([]);
 
   const [loadingFees, setLoadingFees] =
-    useState(true)
+    useState(true);
 
-  // ==================================================
+  // =========================================================
   // PROFILE
-  // ==================================================
+  // =========================================================
 
   const [profile, setProfile] =
-    useState<Profile | null>(null)
+    useState<Profile | null>(null);
 
   const [profileForm, setProfileForm] =
     useState<ProfileForm>({
-      full_name: '',
-      phone: '',
-      course: '',
-      year: '',
-      guardian_name: '',
-      guardian_phone: '',
-    })
+      full_name: "",
+      phone: "",
+      course: "",
+      year: "",
+      guardian_name: "",
+      guardian_phone: "",
+    });
 
   const [loadingProfile, setLoadingProfile] =
-    useState(true)
+    useState(true);
 
   const [savingProfile, setSavingProfile] =
-    useState(false)
+    useState(false);
 
   const [editingProfile, setEditingProfile] =
-    useState(false)
+    useState(false);
 
   const [profileMessage, setProfileMessage] =
-    useState('')
+    useState("");
 
-  // ==================================================
-  // ERROR
-  // ==================================================
+  // =========================================================
+  // GENERAL ERROR
+  // =========================================================
 
-  const [error, setError] = useState('')
+  const [error, setError] = useState("");
 
-  // ==================================================
+  // =========================================================
   // LOCAL USER
-  // ==================================================
+  // =========================================================
 
   const user = useMemo(() => {
     try {
       return JSON.parse(
-        localStorage.getItem('edustay_user') || '{}'
-      )
+        localStorage.getItem("edustay_user") || "{}"
+      );
     } catch {
-      return {}
+      return {};
     }
-  }, [])
+  }, []);
 
-  // ==================================================
-  // GET CURRENT SUPABASE USER
-  // ==================================================
+  // =========================================================
+  // CURRENT SUPABASE USER
+  // =========================================================
 
   const getCurrentUser = async () => {
     const {
       data: { user: authUser },
-    } = await supabase.auth.getUser()
+      error: authError,
+    } = await supabase.auth.getUser();
 
-    return authUser
-  }
+    if (authError) {
+      console.error(
+        "Get current user error:",
+        authError
+      );
+    }
 
-  // ==================================================
+    return authUser;
+  };
+
+  // =========================================================
   // LOAD PROFILE
-  // ==================================================
+  // =========================================================
 
   const loadProfile = async () => {
-    setLoadingProfile(true)
-    setProfileMessage('')
+    setLoadingProfile(true);
+    setProfileMessage("");
 
-    const authUser = await getCurrentUser()
+    const authUser = await getCurrentUser();
 
     if (!authUser) {
-      setLoadingProfile(false)
-      navigate('/login')
-      return
+      setLoadingProfile(false);
+      navigate("/login", { replace: true });
+      return;
     }
 
     const {
       data,
       error: profileError,
     } = await supabase
-      .from('profiles')
+      .from("profiles")
       .select(`
         id,
         full_name,
@@ -216,231 +224,315 @@ function Dashboard() {
         guardian_name,
         guardian_phone
       `)
-      .eq('id', authUser.id)
-      .maybeSingle()
+      .eq("id", authUser.id)
+      .maybeSingle();
 
     if (profileError) {
       console.error(
-        'Load profile error:',
+        "Load profile error:",
         profileError
-      )
+      );
 
-      setError(profileError.message)
-      setProfile(null)
-      setLoadingProfile(false)
-      return
+      setError(profileError.message);
+      setProfile(null);
+      setLoadingProfile(false);
+      return;
     }
 
     if (!data) {
-      setProfile(null)
-      setLoadingProfile(false)
-      return
+      setProfile(null);
+      setLoadingProfile(false);
+      return;
     }
 
-    setProfile(data)
+    setProfile(data);
 
     setProfileForm({
-      full_name: data.full_name || '',
-      phone: data.phone || '',
-      course: data.course || '',
+      full_name: data.full_name || "",
+      phone: data.phone || "",
+      course: data.course || "",
       year:
         data.year !== null &&
         data.year !== undefined
           ? String(data.year)
-          : '',
+          : "",
       guardian_name:
-        data.guardian_name || '',
+        data.guardian_name || "",
       guardian_phone:
-        data.guardian_phone || '',
-    })
+        data.guardian_phone || "",
+    });
 
-    setLoadingProfile(false)
-  }
+    setLoadingProfile(false);
+  };
 
-  // ==================================================
-  // SAVE PROFILE
-  // ==================================================
-
-  const saveProfile = async () => {
-    setSavingProfile(true)
-    setError('')
-    setProfileMessage('')
-
-    const authUser = await getCurrentUser()
-
-    if (!authUser) {
-      setSavingProfile(false)
-      navigate('/login')
-      return
-    }
-
-    const {
-      data,
-      error: updateError,
-    } = await supabase
-      .from('profiles')
-      .update({
-        full_name:
-          profileForm.full_name.trim(),
-
-        phone:
-          profileForm.phone.trim() || null,
-
-        course:
-          profileForm.course.trim() || null,
-
-        year:
-          profileForm.year.trim() || null,
-
-        guardian_name:
-          profileForm.guardian_name.trim() ||
-          null,
-
-        guardian_phone:
-          profileForm.guardian_phone.trim() ||
-          null,
-      })
-      .eq('id', authUser.id)
-      .select(`
-        id,
-        full_name,
-        email,
-        role,
-        created_at,
-        phone,
-        course,
-        year,
-        guardian_name,
-        guardian_phone
-      `)
-      .single()
-
-    if (updateError) {
-      console.error(
-        'Save profile error:',
-        updateError
-      )
-
-      setError(updateError.message)
-      setSavingProfile(false)
-      return
-    }
-
-    setProfile(data)
-
-    setProfileForm({
-      full_name: data.full_name || '',
-      phone: data.phone || '',
-      course: data.course || '',
-      year:
-        data.year !== null &&
-        data.year !== undefined
-          ? String(data.year)
-          : '',
-      guardian_name:
-        data.guardian_name || '',
-      guardian_phone:
-        data.guardian_phone || '',
-    })
-
-    try {
-      const existingUser = JSON.parse(
-        localStorage.getItem(
-          'edustay_user'
-        ) || '{}'
-      )
-
-      localStorage.setItem(
-        'edustay_user',
-        JSON.stringify({
-          ...existingUser,
-          name: data.full_name,
-          full_name: data.full_name,
-        })
-      )
-    } catch {
-      // Ignore localStorage errors
-    }
-
-    setEditingProfile(false)
-
-    setProfileMessage(
-      'Profile updated successfully.'
-    )
-
-    setSavingProfile(false)
-  }
-
-  // ==================================================
-  // PROFILE FORM HANDLER
-  // ==================================================
+  // =========================================================
+  // UPDATE PROFILE FIELD
+  // =========================================================
 
   const updateProfileField = (
     field: keyof ProfileForm,
     value: string
   ) => {
-    setProfileForm(prev => ({
-      ...prev,
+    setProfileForm((previous) => ({
+      ...previous,
       [field]: value,
-    }))
-  }
+    }));
+  };
 
-  // ==================================================
+  // =========================================================
+  // SAVE PROFILE
+  // =========================================================
+
+  const saveProfile = async () => {
+    setError("");
+    setProfileMessage("");
+
+    if (!profileForm.full_name.trim()) {
+      setError("Full name cannot be empty.");
+      return;
+    }
+
+    setSavingProfile(true);
+
+    try {
+      const authUser = await getCurrentUser();
+
+      if (!authUser) {
+        navigate("/login", { replace: true });
+        return;
+      }
+
+      // Convert year to INTEGER because the Supabase
+      // profiles.year column is an integer.
+      let yearValue: number | null = null;
+
+      if (profileForm.year.trim()) {
+        const parsedYear = Number(
+          profileForm.year.trim()
+        );
+
+        if (
+          !Number.isInteger(parsedYear) ||
+          parsedYear < 1
+        ) {
+          setError(
+            "Please select a valid academic year."
+          );
+          setSavingProfile(false);
+          return;
+        }
+
+        yearValue = parsedYear;
+      }
+
+      const updatedProfile = {
+        full_name: profileForm.full_name.trim(),
+        phone:
+          profileForm.phone.trim() || null,
+        course:
+          profileForm.course.trim() || null,
+        year: yearValue,
+        guardian_name:
+          profileForm.guardian_name.trim() || null,
+        guardian_phone:
+          profileForm.guardian_phone.trim() || null,
+      };
+
+      console.log(
+        "Saving profile:",
+        updatedProfile
+      );
+
+      const {
+        data,
+        error: updateError,
+      } = await supabase
+        .from("profiles")
+        .update(updatedProfile)
+        .eq("id", authUser.id)
+        .select(`
+          id,
+          full_name,
+          email,
+          role,
+          created_at,
+          phone,
+          course,
+          year,
+          guardian_name,
+          guardian_phone
+        `)
+        .single();
+
+      if (updateError) {
+        console.error(
+          "Save profile error:",
+          updateError
+        );
+
+        setError(
+          `Unable to save profile: ${updateError.message}`
+        );
+
+        return;
+      }
+
+      if (!data) {
+        setError(
+          "Profile was not updated. Please try again."
+        );
+
+        return;
+      }
+
+      // Update React state immediately
+      setProfile(data);
+
+      setProfileForm({
+        full_name: data.full_name || "",
+        phone: data.phone || "",
+        course: data.course || "",
+        year:
+          data.year !== null &&
+          data.year !== undefined
+            ? String(data.year)
+            : "",
+        guardian_name:
+          data.guardian_name || "",
+        guardian_phone:
+          data.guardian_phone || "",
+      });
+
+      // Keep local user name synchronized
+      try {
+        const existingUser = JSON.parse(
+          localStorage.getItem(
+            "edustay_user"
+          ) || "{}"
+        );
+
+        localStorage.setItem(
+          "edustay_user",
+          JSON.stringify({
+            ...existingUser,
+            name: data.full_name,
+            full_name: data.full_name,
+          })
+        );
+      } catch (storageError) {
+        console.error(
+          "Local storage update error:",
+          storageError
+        );
+      }
+
+      setEditingProfile(false);
+
+      setProfileMessage(
+        "Profile updated successfully."
+      );
+    } catch (saveError) {
+      console.error(
+        "Unexpected profile save error:",
+        saveError
+      );
+
+      setError(
+        saveError instanceof Error
+          ? saveError.message
+          : "Something went wrong while saving your profile."
+      );
+    } finally {
+      setSavingProfile(false);
+    }
+  };
+
+  // =========================================================
+  // CANCEL PROFILE EDIT
+  // =========================================================
+
+  const cancelProfileEdit = () => {
+    if (profile) {
+      setProfileForm({
+        full_name:
+          profile.full_name || "",
+        phone:
+          profile.phone || "",
+        course:
+          profile.course || "",
+        year:
+          profile.year !== null &&
+          profile.year !== undefined
+            ? String(profile.year)
+            : "",
+        guardian_name:
+          profile.guardian_name || "",
+        guardian_phone:
+          profile.guardian_phone || "",
+      });
+    }
+
+    setEditingProfile(false);
+    setProfileMessage("");
+    setError("");
+  };
+
+  // =========================================================
   // LOAD COMPLAINTS
-  // ==================================================
+  // =========================================================
 
   const loadComplaints = async () => {
-    setLoadingComplaints(true)
+    setLoadingComplaints(true);
 
-    const authUser = await getCurrentUser()
+    const authUser = await getCurrentUser();
 
     if (!authUser) {
-      setLoadingComplaints(false)
-      navigate('/login')
-      return
+      setLoadingComplaints(false);
+      navigate("/login", { replace: true });
+      return;
     }
 
     const {
       data,
       error: complaintsError,
     } = await supabase
-      .from('complaints')
+      .from("complaints")
       .select(
-        'id, title, status, created_at'
+        "id, title, status, created_at"
       )
-      .eq('student_id', authUser.id)
-      .order('created_at', {
+      .eq("student_id", authUser.id)
+      .order("created_at", {
         ascending: false,
-      })
+      });
 
     if (complaintsError) {
       console.error(
-        'Load complaints error:',
+        "Load complaints error:",
         complaintsError
-      )
+      );
 
-      setError(complaintsError.message)
-      setComplaints([])
+      setError(complaintsError.message);
+      setComplaints([]);
     } else {
-      setComplaints(data || [])
+      setComplaints(data || []);
     }
 
-    setLoadingComplaints(false)
-  }
+    setLoadingComplaints(false);
+  };
 
-  // ==================================================
+  // =========================================================
   // LOAD ROOM
-  // ==================================================
+  // =========================================================
 
   const loadRoom = async () => {
-    setLoadingRoom(true)
+    setLoadingRoom(true);
 
-    const authUser = await getCurrentUser()
+    const authUser = await getCurrentUser();
 
     if (!authUser) {
-      setLoadingRoom(false)
-      navigate('/login')
-      return
+      setLoadingRoom(false);
+      navigate("/login", { replace: true });
+      return;
     }
 
     try {
@@ -448,38 +540,38 @@ function Dashboard() {
         data: allocation,
         error: allocationError,
       } = await supabase
-        .from('room_allocations')
+        .from("room_allocations")
         .select(
-          'room_id, student_id'
+          "room_id, student_id"
         )
-        .eq('student_id', authUser.id)
-        .maybeSingle()
+        .eq("student_id", authUser.id)
+        .maybeSingle();
 
       if (allocationError) {
         console.error(
-          'Room allocation error:',
+          "Room allocation error:",
           allocationError
-        )
+        );
 
-        setError(allocationError.message)
-        setRoom(null)
-        setRoomMembers([])
-        setLoadingRoom(false)
-        return
+        setError(allocationError.message);
+        setRoom(null);
+        setRoomMembers([]);
+        setLoadingRoom(false);
+        return;
       }
 
       if (!allocation) {
-        setRoom(null)
-        setRoomMembers([])
-        setLoadingRoom(false)
-        return
+        setRoom(null);
+        setRoomMembers([]);
+        setLoadingRoom(false);
+        return;
       }
 
       const {
         data: roomData,
         error: roomError,
       } = await supabase
-        .from('rooms')
+        .from("rooms")
         .select(`
           id,
           room_number,
@@ -488,115 +580,118 @@ function Dashboard() {
           occupied,
           status
         `)
-        .eq('id', allocation.room_id)
-        .single()
+        .eq("id", allocation.room_id)
+        .single();
 
       if (roomError) {
         console.error(
-          'Room error:',
+          "Room error:",
           roomError
-        )
+        );
 
-        setError(roomError.message)
-        setRoom(null)
-        setRoomMembers([])
-        setLoadingRoom(false)
-        return
+        setError(roomError.message);
+        setRoom(null);
+        setRoomMembers([]);
+        setLoadingRoom(false);
+        return;
       }
 
-      setRoom(roomData)
+      setRoom(roomData);
 
       const {
         data: allocations,
         error: membersError,
       } = await supabase
-        .from('room_allocations')
-        .select('student_id')
+        .from("room_allocations")
+        .select("student_id")
         .eq(
-          'room_id',
+          "room_id",
           allocation.room_id
-        )
+        );
 
       if (membersError) {
         console.error(
-          'Room members error:',
+          "Room members error:",
           membersError
-        )
+        );
 
-        setError(membersError.message)
-        setRoomMembers([])
-        setLoadingRoom(false)
-        return
+        setError(membersError.message);
+        setRoomMembers([]);
+        setLoadingRoom(false);
+        return;
       }
 
       const studentIds =
         (allocations || []).map(
           (item: RoomAllocation) =>
             item.student_id
-        )
+        );
 
       if (studentIds.length === 0) {
-        setRoomMembers([])
-        setLoadingRoom(false)
-        return
+        setRoomMembers([]);
+        setLoadingRoom(false);
+        return;
       }
 
       const {
         data: members,
         error: profilesError,
       } = await supabase
-        .from('profiles')
+        .from("profiles")
         .select(
-          'id, full_name, email'
+          "id, full_name, email"
         )
-        .in('id', studentIds)
+        .in("id", studentIds);
 
       if (profilesError) {
         console.error(
-          'Room member profiles error:',
+          "Room member profiles error:",
           profilesError
-        )
+        );
 
-        setError(profilesError.message)
-        setRoomMembers([])
-        setLoadingRoom(false)
-        return
+        setError(profilesError.message);
+        setRoomMembers([]);
+        setLoadingRoom(false);
+        return;
       }
 
-      setRoomMembers(members || [])
-    } catch (err) {
-      console.error(err)
+      setRoomMembers(members || []);
+    } catch (roomLoadError) {
+      console.error(
+        "Unexpected room error:",
+        roomLoadError
+      );
 
       setError(
-        err instanceof Error
-          ? err.message
-          : 'Failed to load room information.'
-      )
+        roomLoadError instanceof Error
+          ? roomLoadError.message
+          : "Failed to load room information."
+      );
     }
 
-    setLoadingRoom(false)
-  }
+    setLoadingRoom(false);
+  };
 
-  // ==================================================
+  // =========================================================
   // LOAD FEES
-  // ==================================================
+  // =========================================================
 
   const loadFees = async () => {
-    setLoadingFees(true)
+    setLoadingFees(true);
 
-    const authUser = await getCurrentUser()
+    const authUser = await getCurrentUser();
 
     if (!authUser) {
-      setLoadingFees(false)
-      navigate('/login')
-      return
+      setLoadingFees(false);
+      navigate("/login", { replace: true });
+      return;
     }
 
     const {
       data,
       error: feesError,
     } = await supabase
-      .from('fees')
+      .from("fees")
       .select(`
         id,
         amount,
@@ -606,234 +701,264 @@ function Dashboard() {
         description,
         created_at
       `)
-      .eq('student_id', authUser.id)
-      .order('due_date', {
+      .eq("student_id", authUser.id)
+      .order("due_date", {
         ascending: false,
-      })
+      });
 
     if (feesError) {
       console.error(
-        'Load fees error:',
+        "Load fees error:",
         feesError
-      )
+      );
 
-      setError(feesError.message)
-      setFees([])
+      setError(feesError.message);
+      setFees([]);
     } else {
-      setFees(data || [])
+      setFees(data || []);
     }
 
-    setLoadingFees(false)
-  }
+    setLoadingFees(false);
+  };
 
-  // ==================================================
+  // =========================================================
   // INITIAL LOAD
-  // ==================================================
+  // =========================================================
 
   useEffect(() => {
-    loadComplaints()
-    loadRoom()
-    loadFees()
-    loadProfile()
-  }, [])
+    const initializeDashboard = async () => {
+      const authUser = await getCurrentUser();
 
-  // ==================================================
+      if (!authUser) {
+        navigate("/login", {
+          replace: true,
+        });
+        return;
+      }
+
+      await Promise.all([
+        loadComplaints(),
+        loadRoom(),
+        loadFees(),
+        loadProfile(),
+      ]);
+    };
+
+    initializeDashboard();
+  }, []);
+
+  // =========================================================
   // LOGOUT
-  // ==================================================
+  // =========================================================
 
   const logout = async () => {
-    await supabase.auth.signOut()
+    await supabase.auth.signOut();
 
     localStorage.removeItem(
-      'edustay_user'
-    )
+      "edustay_user"
+    );
 
-    navigate('/login')
-  }
+    navigate("/login", {
+      replace: true,
+    });
+  };
 
-  // ==================================================
+  // =========================================================
   // ADD COMPLAINT
-  // ==================================================
+  // =========================================================
 
   const addComplaint = async () => {
     const title = window.prompt(
-      'What issue would you like to report?'
-    )
+      "What issue would you like to report?"
+    );
 
-    if (!title?.trim()) return
-
-    setAddingComplaint(true)
-    setError('')
-
-    const authUser = await getCurrentUser()
-
-    if (!authUser) {
-      setAddingComplaint(false)
-      navigate('/login')
-      return
+    if (!title?.trim()) {
+      return;
     }
 
-    const { error: complaintError } =
-      await supabase
-        .from('complaints')
-        .insert({
-          student_id: authUser.id,
-          title: title.trim(),
-          status: 'Open',
-        })
+    setAddingComplaint(true);
+    setError("");
+
+    const authUser = await getCurrentUser();
+
+    if (!authUser) {
+      setAddingComplaint(false);
+      navigate("/login", {
+        replace: true,
+      });
+      return;
+    }
+
+    const {
+      error: complaintError,
+    } = await supabase
+      .from("complaints")
+      .insert({
+        student_id: authUser.id,
+        title: title.trim(),
+        status: "Open",
+      });
 
     if (complaintError) {
       console.error(
-        'Add complaint error:',
+        "Add complaint error:",
         complaintError
-      )
+      );
 
-      setError(complaintError.message)
-      setAddingComplaint(false)
-      return
+      setError(
+        complaintError.message
+      );
+
+      setAddingComplaint(false);
+      return;
     }
 
-    await loadComplaints()
+    await loadComplaints();
 
-    setAddingComplaint(false)
-    setActive('complaints')
-  }
+    setAddingComplaint(false);
+    setActive("complaints");
+  };
 
-  // ==================================================
+  // =========================================================
   // REFRESH
-  // ==================================================
+  // =========================================================
 
   const refreshData = async () => {
-    setError('')
+    setError("");
 
     await Promise.all([
       loadComplaints(),
       loadRoom(),
       loadFees(),
       loadProfile(),
-    ])
-  }
+    ]);
+  };
 
-  // ==================================================
+  // =========================================================
   // FEE HELPERS
-  // ==================================================
+  // =========================================================
 
   const totalFees = fees.reduce(
     (sum, fee) =>
       sum + Number(fee.amount || 0),
     0
-  )
+  );
 
   const paidFees = fees
     .filter(
-      fee => fee.status === 'Paid'
+      (fee) => fee.status === "Paid"
     )
     .reduce(
       (sum, fee) =>
         sum + Number(fee.amount || 0),
       0
-    )
+    );
 
   const pendingFees = fees
     .filter(
-      fee =>
-        fee.status === 'Pending' ||
-        fee.status === 'Overdue'
+      (fee) =>
+        fee.status === "Pending" ||
+        fee.status === "Overdue"
     )
     .reduce(
       (sum, fee) =>
         sum + Number(fee.amount || 0),
       0
-    )
+    );
 
   const latestFee =
     fees.length > 0
       ? fees[0]
-      : null
+      : null;
 
   const formatCurrency = (
     amount: number
   ) => {
     return new Intl.NumberFormat(
-      'en-IN',
+      "en-IN",
       {
-        style: 'currency',
-        currency: 'INR',
+        style: "currency",
+        currency: "INR",
         maximumFractionDigits: 0,
       }
-    ).format(amount)
-  }
+    ).format(amount);
+  };
 
   const formatDate = (
     date: string
   ) => {
-    if (!date) return '—'
+    if (!date) {
+      return "—";
+    }
 
     return new Date(
       `${date}T00:00:00`
     ).toLocaleDateString(
-      'en-IN',
+      "en-IN",
       {
-        day: '2-digit',
-        month: 'short',
-        year: 'numeric',
+        day: "2-digit",
+        month: "short",
+        year: "numeric",
       }
-    )
-  }
+    );
+  };
 
   const getFeeStatusClass = (
-    status: Fee['status']
+    status: Fee["status"]
   ) => {
-    if (status === 'Paid') {
-      return 'paid-status'
+    if (status === "Paid") {
+      return "paid-status";
     }
 
-    if (status === 'Overdue') {
-      return 'overdue-status'
+    if (status === "Overdue") {
+      return "overdue-status";
     }
 
-    return 'pending-status'
-  }
+    return "pending-status";
+  };
 
-  // ==================================================
+  // =========================================================
   // FLOOR
-  // ==================================================
+  // =========================================================
 
   const getFloorText = (
     floor: number
   ) => {
-    if (floor === 1) return '1st'
-    if (floor === 2) return '2nd'
-    if (floor === 3) return '3rd'
+    if (floor === 1) return "1st";
+    if (floor === 2) return "2nd";
+    if (floor === 3) return "3rd";
 
-    return `${floor}th`
-  }
+    return `${floor}th`;
+  };
 
-  // ==================================================
+  // =========================================================
   // DISPLAY NAME
-  // ==================================================
+  // =========================================================
 
   const displayName =
     profile?.full_name ||
     user.name ||
     user.full_name ||
-    'Student'
+    "Student";
 
-  // ==================================================
+  // =========================================================
   // UI
-  // ==================================================
+  // =========================================================
 
   return (
     <main className="dashboard-page">
 
-      {/* SIDEBAR */}
+      {/* =====================================================
+          SIDEBAR
+      ====================================================== */}
 
       <aside className="dashboard-sidebar">
 
         <button
+          type="button"
           className="dashboard-logo"
           onClick={() =>
-            navigate('/')
+            navigate("/")
           }
         >
           EduStay<span>.</span>
@@ -842,13 +967,14 @@ function Dashboard() {
         <nav className="dashboard-nav">
 
           <button
+            type="button"
             className={
-              active === 'overview'
-                ? 'active'
-                : ''
+              active === "overview"
+                ? "active"
+                : ""
             }
             onClick={() =>
-              setActive('overview')
+              setActive("overview")
             }
           >
             <BedDouble size={18} />
@@ -856,13 +982,14 @@ function Dashboard() {
           </button>
 
           <button
+            type="button"
             className={
-              active === 'complaints'
-                ? 'active'
-                : ''
+              active === "complaints"
+                ? "active"
+                : ""
             }
             onClick={() =>
-              setActive('complaints')
+              setActive("complaints")
             }
           >
             <MessageSquare size={18} />
@@ -870,13 +997,14 @@ function Dashboard() {
           </button>
 
           <button
+            type="button"
             className={
-              active === 'fees'
-                ? 'active'
-                : ''
+              active === "fees"
+                ? "active"
+                : ""
             }
             onClick={() =>
-              setActive('fees')
+              setActive("fees")
             }
           >
             <CreditCard size={18} />
@@ -884,13 +1012,14 @@ function Dashboard() {
           </button>
 
           <button
+            type="button"
             className={
-              active === 'profile'
-                ? 'active'
-                : ''
+              active === "profile"
+                ? "active"
+                : ""
             }
             onClick={() =>
-              setActive('profile')
+              setActive("profile")
             }
           >
             <UserRound size={18} />
@@ -900,6 +1029,7 @@ function Dashboard() {
         </nav>
 
         <button
+          type="button"
           className="dashboard-logout"
           onClick={logout}
         >
@@ -909,7 +1039,9 @@ function Dashboard() {
 
       </aside>
 
-      {/* MAIN */}
+      {/* =====================================================
+          MAIN
+      ====================================================== */}
 
       <section className="dashboard-main">
 
@@ -918,7 +1050,6 @@ function Dashboard() {
         <header className="dashboard-header">
 
           <div>
-
             <p className="dashboard-label">
               STUDENT DASHBOARD
             </p>
@@ -926,18 +1057,15 @@ function Dashboard() {
             <h1>
               Hello, {displayName}.
             </h1>
-
           </div>
 
           <div className="dashboard-user">
-
             <Bell size={18} />
 
             <span>
               <UserRound size={18} />
               Student
             </span>
-
           </div>
 
         </header>
@@ -950,18 +1078,16 @@ function Dashboard() {
           </div>
         )}
 
-        {/* ==================================================
+        {/* ===================================================
             PROFILE
-        ================================================== */}
+        ==================================================== */}
 
-        {active === 'profile' && (
-
+        {active === "profile" && (
           <div className="dashboard-panel">
 
             <div className="panel-heading">
 
               <div>
-
                 <p className="dashboard-label">
                   STUDENT PROFILE
                 </p>
@@ -969,49 +1095,43 @@ function Dashboard() {
                 <h2>
                   Your profile
                 </h2>
-
               </div>
 
               {!editingProfile &&
                 !loadingProfile && (
-
                   <button
+                    type="button"
                     className="panel-action"
                     onClick={() => {
-                      setProfileMessage('')
-                      setEditingProfile(true)
+                      setError("");
+                      setProfileMessage("");
+                      setEditingProfile(true);
                     }}
                   >
                     <Pencil size={16} />
                     Edit Profile
                   </button>
-
                 )}
 
             </div>
 
+            {/* SUCCESS MESSAGE */}
+
             {profileMessage && (
-
               <div className="profile-success">
-
                 <CheckCircle2 size={18} />
-
                 {profileMessage}
-
               </div>
-
             )}
 
-            {loadingProfile ? (
+            {/* PROFILE LOADING */}
 
+            {loadingProfile ? (
               <div className="profile-loading">
                 Loading profile...
               </div>
-
             ) : !profile ? (
-
               <div className="profile-empty">
-
                 <UserRound size={45} />
 
                 <h3>
@@ -1019,27 +1139,21 @@ function Dashboard() {
                 </h3>
 
                 <p>
-                  Your student profile could
-                  not be loaded.
+                  Your student profile
+                  could not be loaded.
                 </p>
-
               </div>
-
             ) : (
-
               <div className="profile-content">
 
-                {/* ==================================================
+                {/* =================================================
                     BASIC INFORMATION
-                    UID AND ROLE REMOVED
                 ================================================== */}
 
                 <div className="profile-section">
 
                   <div className="profile-section-heading">
-
                     <div>
-
                       <p className="dashboard-label">
                         BASIC INFORMATION
                       </p>
@@ -1047,9 +1161,7 @@ function Dashboard() {
                       <h3>
                         Student details
                       </h3>
-
                     </div>
-
                   </div>
 
                   <div className="profile-grid">
@@ -1063,28 +1175,24 @@ function Dashboard() {
                       </label>
 
                       {editingProfile ? (
-
                         <input
                           type="text"
                           value={
                             profileForm.full_name
                           }
-                          onChange={e =>
+                          onChange={(e) =>
                             updateProfileField(
-                              'full_name',
+                              "full_name",
                               e.target.value
                             )
                           }
                           placeholder="Enter your full name"
                         />
-
                       ) : (
-
                         <div className="profile-value">
                           {profile.full_name ||
-                            'Not provided'}
+                            "Not provided"}
                         </div>
-
                       )}
 
                     </div>
@@ -1099,25 +1207,22 @@ function Dashboard() {
 
                       <div className="profile-value profile-readonly">
                         {profile.email ||
-                          'Not provided'}
+                          "Not provided"}
                       </div>
 
                     </div>
 
                   </div>
-
                 </div>
 
-                {/* ==================================================
+                {/* =================================================
                     ACADEMIC INFORMATION
                 ================================================== */}
 
                 <div className="profile-section">
 
                   <div className="profile-section-heading">
-
                     <div>
-
                       <p className="dashboard-label">
                         ACADEMIC INFORMATION
                       </p>
@@ -1125,9 +1230,7 @@ function Dashboard() {
                       <h3>
                         Course details
                       </h3>
-
                     </div>
-
                   </div>
 
                   <div className="profile-grid">
@@ -1141,28 +1244,24 @@ function Dashboard() {
                       </label>
 
                       {editingProfile ? (
-
                         <input
                           type="text"
                           value={
                             profileForm.course
                           }
-                          onChange={e =>
+                          onChange={(e) =>
                             updateProfileField(
-                              'course',
+                              "course",
                               e.target.value
                             )
                           }
                           placeholder="e.g. B.Tech Computer Science"
                         />
-
                       ) : (
-
                         <div className="profile-value">
                           {profile.course ||
-                            'Not provided'}
+                            "Not provided"}
                         </div>
-
                       )}
 
                     </div>
@@ -1176,19 +1275,17 @@ function Dashboard() {
                       </label>
 
                       {editingProfile ? (
-
                         <select
                           value={
                             profileForm.year
                           }
-                          onChange={e =>
+                          onChange={(e) =>
                             updateProfileField(
-                              'year',
+                              "year",
                               e.target.value
                             )
                           }
                         >
-
                           <option value="">
                             Select year
                           </option>
@@ -1212,51 +1309,42 @@ function Dashboard() {
                           <option value="5">
                             5th Year
                           </option>
-
                         </select>
-
                       ) : (
-
                         <div className="profile-value">
-
                           {profile.year
                             ? `${profile.year}${
                                 Number(
                                   profile.year
                                 ) === 1
-                                  ? 'st'
+                                  ? "st"
                                   : Number(
                                       profile.year
                                     ) === 2
-                                  ? 'nd'
+                                  ? "nd"
                                   : Number(
                                       profile.year
                                     ) === 3
-                                  ? 'rd'
-                                  : 'th'
+                                  ? "rd"
+                                  : "th"
                               } Year`
-                            : 'Not provided'}
-
+                            : "Not provided"}
                         </div>
-
                       )}
 
                     </div>
 
                   </div>
-
                 </div>
 
-                {/* ==================================================
+                {/* =================================================
                     CONTACT INFORMATION
                 ================================================== */}
 
                 <div className="profile-section">
 
                   <div className="profile-section-heading">
-
                     <div>
-
                       <p className="dashboard-label">
                         CONTACT INFORMATION
                       </p>
@@ -1264,9 +1352,7 @@ function Dashboard() {
                       <h3>
                         Contact details
                       </h3>
-
                     </div>
-
                   </div>
 
                   <div className="profile-grid">
@@ -1280,28 +1366,24 @@ function Dashboard() {
                       </label>
 
                       {editingProfile ? (
-
                         <input
                           type="tel"
                           value={
                             profileForm.phone
                           }
-                          onChange={e =>
+                          onChange={(e) =>
                             updateProfileField(
-                              'phone',
+                              "phone",
                               e.target.value
                             )
                           }
                           placeholder="Enter phone number"
                         />
-
                       ) : (
-
                         <div className="profile-value">
                           {profile.phone ||
-                            'Not provided'}
+                            "Not provided"}
                         </div>
-
                       )}
 
                     </div>
@@ -1315,46 +1397,39 @@ function Dashboard() {
                       </label>
 
                       {editingProfile ? (
-
                         <input
                           type="tel"
                           value={
                             profileForm.guardian_phone
                           }
-                          onChange={e =>
+                          onChange={(e) =>
                             updateProfileField(
-                              'guardian_phone',
+                              "guardian_phone",
                               e.target.value
                             )
                           }
                           placeholder="Enter guardian phone"
                         />
-
                       ) : (
-
                         <div className="profile-value">
                           {profile.guardian_phone ||
-                            'Not provided'}
+                            "Not provided"}
                         </div>
-
                       )}
 
                     </div>
 
                   </div>
-
                 </div>
 
-                {/* ==================================================
+                {/* =================================================
                     GUARDIAN INFORMATION
                 ================================================== */}
 
                 <div className="profile-section">
 
                   <div className="profile-section-heading">
-
                     <div>
-
                       <p className="dashboard-label">
                         GUARDIAN INFORMATION
                       </p>
@@ -1362,9 +1437,7 @@ function Dashboard() {
                       <h3>
                         Emergency contact
                       </h3>
-
                     </div>
-
                   </div>
 
                   <div className="profile-grid">
@@ -1378,28 +1451,24 @@ function Dashboard() {
                       </label>
 
                       {editingProfile ? (
-
                         <input
                           type="text"
                           value={
                             profileForm.guardian_name
                           }
-                          onChange={e =>
+                          onChange={(e) =>
                             updateProfileField(
-                              'guardian_name',
+                              "guardian_name",
                               e.target.value
                             )
                           }
                           placeholder="Enter guardian name"
                         />
-
                       ) : (
-
                         <div className="profile-value">
                           {profile.guardian_name ||
-                            'Not provided'}
+                            "Not provided"}
                         </div>
-
                       )}
 
                     </div>
@@ -1413,92 +1482,49 @@ function Dashboard() {
                       </label>
 
                       {editingProfile ? (
-
                         <input
                           type="tel"
                           value={
                             profileForm.guardian_phone
                           }
-                          onChange={e =>
+                          onChange={(e) =>
                             updateProfileField(
-                              'guardian_phone',
+                              "guardian_phone",
                               e.target.value
                             )
                           }
                           placeholder="Enter guardian phone"
                         />
-
                       ) : (
-
                         <div className="profile-value">
                           {profile.guardian_phone ||
-                            'Not provided'}
+                            "Not provided"}
                         </div>
-
                       )}
 
                     </div>
 
                   </div>
-
                 </div>
 
-                {/* EDIT BUTTONS */}
+                {/* =================================================
+                    PROFILE ACTIONS
+                ================================================== */}
 
                 {editingProfile && (
-
                   <div className="profile-actions">
 
                     <button
+                      type="button"
                       className="profile-cancel"
-                      onClick={() => {
-
-                        if (profile) {
-
-                          setProfileForm({
-                            full_name:
-                              profile.full_name ||
-                              '',
-
-                            phone:
-                              profile.phone ||
-                              '',
-
-                            course:
-                              profile.course ||
-                              '',
-
-                            year:
-                              profile.year !==
-                                null &&
-                              profile.year !==
-                                undefined
-                                ? String(
-                                    profile.year
-                                  )
-                                : '',
-
-                            guardian_name:
-                              profile.guardian_name ||
-                              '',
-
-                            guardian_phone:
-                              profile.guardian_phone ||
-                              '',
-                          })
-
-                        }
-
-                        setEditingProfile(false)
-                        setProfileMessage('')
-
-                      }}
+                      onClick={cancelProfileEdit}
                       disabled={savingProfile}
                     >
                       Cancel
                     </button>
 
                     <button
+                      type="button"
                       className="profile-save"
                       onClick={saveProfile}
                       disabled={
@@ -1506,35 +1532,28 @@ function Dashboard() {
                         !profileForm.full_name.trim()
                       }
                     >
-
                       <Save size={17} />
 
                       {savingProfile
-                        ? 'Saving...'
-                        : 'Save Changes'}
-
+                        ? "Saving..."
+                        : "Save Changes"}
                     </button>
 
                   </div>
-
                 )}
 
               </div>
-
             )}
 
           </div>
-
         )}
 
-        {/* ==================================================
+        {/* ===================================================
             OVERVIEW
-        ================================================== */}
+        ==================================================== */}
 
-        {active === 'overview' && (
-
+        {active === "overview" && (
           <>
-
             <div className="dashboard-cards">
 
               {/* ROOM */}
@@ -1551,10 +1570,10 @@ function Dashboard() {
 
                 <strong>
                   {loadingRoom
-                    ? 'Loading...'
+                    ? "Loading..."
                     : room
-                      ? room.room_number
-                      : 'Not allocated'}
+                    ? room.room_number
+                    : "Not allocated"}
                 </strong>
 
                 <p>
@@ -1564,7 +1583,7 @@ function Dashboard() {
                       )} Floor · ${
                         room.capacity
                       } Beds`
-                    : 'No room assigned'}
+                    : "No room assigned"}
                 </p>
 
               </article>
@@ -1584,17 +1603,17 @@ function Dashboard() {
                 <strong>
                   {
                     complaints.filter(
-                      c =>
-                        c.status ===
-                        'Open'
+                      (complaint) =>
+                        complaint.status ===
+                        "Open"
                     ).length
-                  }{' '}
+                  }{" "}
                   Open
                 </strong>
 
                 <p>
-                  {complaints.length}{' '}
-                  total requests
+                  {complaints.length} total
+                  requests
                 </p>
 
               </article>
@@ -1613,12 +1632,12 @@ function Dashboard() {
 
                 <strong>
                   {loadingFees
-                    ? 'Loading...'
+                    ? "Loading..."
                     : latestFee
-                      ? formatCurrency(
-                          latestFee.amount
-                        )
-                      : 'No fee'}
+                    ? formatCurrency(
+                        latestFee.amount
+                      )
+                    : "No fee"}
                 </strong>
 
                 <p>
@@ -1626,7 +1645,7 @@ function Dashboard() {
                     ? `Due: ${formatDate(
                         latestFee.due_date
                       )}`
-                    : 'No fee assigned'}
+                    : "No fee assigned"}
                 </p>
 
               </article>
@@ -1640,7 +1659,6 @@ function Dashboard() {
               <div className="panel-heading">
 
                 <div>
-
                   <p className="dashboard-label">
                     ACCOMMODATION
                   </p>
@@ -1648,10 +1666,10 @@ function Dashboard() {
                   <h2>
                     Your accommodation
                   </h2>
-
                 </div>
 
                 <button
+                  type="button"
                   className="panel-action"
                   onClick={refreshData}
                 >
@@ -1661,22 +1679,16 @@ function Dashboard() {
               </div>
 
               {loadingRoom ? (
-
                 <p>
                   Loading room information...
                 </p>
-
               ) : !room ? (
-
                 <p>
                   No room has been allocated
                   to you yet.
                 </p>
-
               ) : (
-
                 <>
-
                   <div className="room-heading">
 
                     <strong>
@@ -1685,8 +1697,8 @@ function Dashboard() {
 
                     <p>
                       Floor {room.floor}
-                      {' · '}
-                      {room.occupied} /{' '}
+                      {" · "}
+                      {room.occupied} /{" "}
                       {room.capacity} beds
                       occupied
                     </p>
@@ -1701,27 +1713,22 @@ function Dashboard() {
 
                     {roomMembers.length ===
                     0 ? (
-
                       <p>
                         No other students are
                         currently assigned to
                         this room.
                       </p>
-
                     ) : (
-
                       <div className="room-members">
 
                         {roomMembers.map(
-                          member => (
-
+                          (member) => (
                             <div
                               className="room-member"
                               key={member.id}
                             >
 
                               <div>
-
                                 <strong>
                                   {
                                     member.full_name
@@ -1731,7 +1738,6 @@ function Dashboard() {
                                 <p>
                                   {member.email}
                                 </p>
-
                               </div>
 
                               {member.id ===
@@ -1742,18 +1748,14 @@ function Dashboard() {
                               )}
 
                             </div>
-
                           )
                         )}
 
                       </div>
-
                     )}
 
                   </div>
-
                 </>
-
               )}
 
             </div>
@@ -1765,7 +1767,6 @@ function Dashboard() {
               <div className="panel-heading">
 
                 <div>
-
                   <p className="dashboard-label">
                     QUICK ACTIONS
                   </p>
@@ -1773,7 +1774,6 @@ function Dashboard() {
                   <h2>
                     What do you need?
                   </h2>
-
                 </div>
 
               </div>
@@ -1781,10 +1781,10 @@ function Dashboard() {
               <div className="quick-actions">
 
                 <button
+                  type="button"
                   onClick={addComplaint}
                   disabled={addingComplaint}
                 >
-
                   <MessageSquare size={20} />
 
                   <strong>
@@ -1794,15 +1794,14 @@ function Dashboard() {
                   <span>
                     Report a hostel issue
                   </span>
-
                 </button>
 
                 <button
+                  type="button"
                   onClick={() =>
-                    setActive('fees')
+                    setActive("fees")
                   }
                 >
-
                   <CreditCard size={20} />
 
                   <strong>
@@ -1812,15 +1811,14 @@ function Dashboard() {
                   <span>
                     Check payment status
                   </span>
-
                 </button>
 
                 <button
+                  type="button"
                   onClick={() =>
-                    setActive('complaints')
+                    setActive("complaints")
                   }
                 >
-
                   <ClipboardList size={20} />
 
                   <strong>
@@ -1830,29 +1828,24 @@ function Dashboard() {
                   <span>
                     See complaint updates
                   </span>
-
                 </button>
 
               </div>
 
             </div>
-
           </>
-
         )}
 
-        {/* ==================================================
+        {/* ===================================================
             COMPLAINTS
-        ================================================== */}
+        ==================================================== */}
 
-        {active === 'complaints' && (
-
+        {active === "complaints" && (
           <div className="dashboard-panel">
 
             <div className="panel-heading">
 
               <div>
-
                 <p className="dashboard-label">
                   REQUEST CENTER
                 </p>
@@ -1860,10 +1853,10 @@ function Dashboard() {
                 <h2>
                   Your complaints
                 </h2>
-
               </div>
 
               <button
+                type="button"
                 className="panel-action"
                 onClick={addComplaint}
                 disabled={addingComplaint}
@@ -1874,25 +1867,19 @@ function Dashboard() {
             </div>
 
             {loadingComplaints ? (
-
               <p>
                 Loading complaints...
               </p>
-
             ) : complaints.length === 0 ? (
-
               <p>
                 You have not submitted any
                 complaints yet.
               </p>
-
             ) : (
-
               <div className="complaint-list">
 
                 {complaints.map(
-                  complaint => (
-
+                  (complaint) => (
                     <div
                       className="complaint-row"
                       key={complaint.id}
@@ -1907,11 +1894,11 @@ function Dashboard() {
                         <span>
                           Request #
                           {complaint.id}
-                          {' · '}
+                          {" · "}
                           {new Date(
                             complaint.created_at
                           ).toLocaleDateString(
-                            'en-IN'
+                            "en-IN"
                           )}
                         </span>
 
@@ -1922,62 +1909,51 @@ function Dashboard() {
                         <span
                           className={
                             complaint.status ===
-                            'Open'
-                              ? 'open'
-                              : 'resolved'
+                            "Open"
+                              ? "open"
+                              : "resolved"
                           }
                         >
-
                           {complaint.status ===
-                          'Resolved' ? (
-
+                          "Resolved" ? (
                             <>
                               <CheckCircle2
                                 size={14}
                               />
                               Resolved
                             </>
-
                           ) : (
-
-                            'Open'
-
+                            "Open"
                           )}
-
                         </span>
 
                       </div>
 
                     </div>
-
                   )
                 )}
 
               </div>
-
             )}
 
           </div>
-
         )}
 
-        {/* ==================================================
+        {/* ===================================================
             FEES
-        ================================================== */}
+        ==================================================== */}
 
-        {active === 'fees' && (
-
+        {active === "fees" && (
           <div
             className="dashboard-panel"
             style={{
-              color: '#f8fafc',
+              color: "#f8fafc",
             }}
           >
 
             <div className="panel-heading">
 
               <div>
-
                 <p className="dashboard-label">
                   PAYMENT CENTER
                 </p>
@@ -1985,10 +1961,10 @@ function Dashboard() {
                 <h2>
                   Hostel fees
                 </h2>
-
               </div>
 
               <button
+                type="button"
                 className="panel-action"
                 onClick={loadFees}
               >
@@ -1998,13 +1974,10 @@ function Dashboard() {
             </div>
 
             {loadingFees ? (
-
               <p>
                 Loading fee information...
               </p>
-
             ) : fees.length === 0 ? (
-
               <div className="fee-empty">
 
                 <CreditCard size={42} />
@@ -2020,20 +1993,17 @@ function Dashboard() {
                 </p>
 
               </div>
-
             ) : (
-
               <>
 
                 <div
                   className="fee-summary"
                   style={{
-                    marginBottom: '28px',
+                    marginBottom: "28px",
                   }}
                 >
 
                   <div>
-
                     <small>
                       TOTAL FEES
                     </small>
@@ -2043,11 +2013,9 @@ function Dashboard() {
                         totalFees
                       )}
                     </strong>
-
                   </div>
 
                   <div>
-
                     <small>
                       PAID
                     </small>
@@ -2057,11 +2025,9 @@ function Dashboard() {
                         paidFees
                       )}
                     </strong>
-
                   </div>
 
                   <div>
-
                     <small>
                       PENDING
                     </small>
@@ -2071,13 +2037,11 @@ function Dashboard() {
                         pendingFees
                       )}
                     </strong>
-
                   </div>
 
                 </div>
 
                 {latestFee && (
-
                   <div className="latest-fee">
 
                     <div className="latest-fee-top">
@@ -2090,11 +2054,11 @@ function Dashboard() {
 
                         <h3>
                           {latestFee.description ||
-                            'Hostel Fee'}
+                            "Hostel Fee"}
                         </h3>
 
                         <p>
-                          Due date:{' '}
+                          Due date:{" "}
                           <strong>
                             {formatDate(
                               latestFee.due_date
@@ -2125,29 +2089,22 @@ function Dashboard() {
                     </div>
 
                     {latestFee.status ===
-                      'Paid' &&
+                      "Paid" &&
                       latestFee.payment_date && (
-
                         <p className="payment-date">
-
-                          Payment received on{' '}
-
+                          Payment received on{" "}
                           <strong>
                             {formatDate(
                               latestFee.payment_date
                             )}
                           </strong>
-
                         </p>
-
                       )}
 
                   </div>
-
                 )}
 
                 {fees.length > 1 && (
-
                   <div>
 
                     <p className="dashboard-label">
@@ -2156,62 +2113,57 @@ function Dashboard() {
 
                     <div className="fee-history">
 
-                      {fees.map(
-                        fee => (
+                      {fees.map((fee) => (
+                        <div
+                          className="fee-history-row"
+                          key={fee.id}
+                        >
 
-                          <div
-                            className="fee-history-row"
-                            key={fee.id}
-                          >
+                          <div>
 
-                            <div>
+                            <strong>
+                              {fee.description ||
+                                "Hostel Fee"}
+                            </strong>
 
-                              <strong>
-                                {fee.description ||
-                                  'Hostel Fee'}
-                              </strong>
-
-                              <p>
-                                Due:{' '}
-                                {formatDate(
-                                  fee.due_date
-                                )}
-                              </p>
-
-                            </div>
-
-                            <div>
-
-                              <strong>
-                                {formatCurrency(
-                                  fee.amount
-                                )}
-                              </strong>
-
-                              <span
-                                className={getFeeStatusClass(
-                                  fee.status
-                                )}
-                              >
-                                {fee.status}
-                              </span>
-
-                            </div>
+                            <p>
+                              Due:{" "}
+                              {formatDate(
+                                fee.due_date
+                              )}
+                            </p>
 
                           </div>
 
-                        )
-                      )}
+                          <div>
+
+                            <strong>
+                              {formatCurrency(
+                                fee.amount
+                              )}
+                            </strong>
+
+                            <span
+                              className={getFeeStatusClass(
+                                fee.status
+                              )}
+                            >
+                              {fee.status}
+                            </span>
+
+                          </div>
+
+                        </div>
+                      ))}
 
                     </div>
 
                   </div>
-
                 )}
 
                 {latestFee &&
-                  latestFee.status !== 'Paid' && (
-
+                  latestFee.status !==
+                    "Paid" && (
                     <div className="payment-info">
 
                       <strong>
@@ -2220,7 +2172,7 @@ function Dashboard() {
 
                       <p>
                         Your payment is currently
-                        marked as{' '}
+                        marked as{" "}
                         <strong>
                           {latestFee.status}
                         </strong>
@@ -2231,21 +2183,17 @@ function Dashboard() {
                       </p>
 
                     </div>
-
                   )}
 
               </>
-
             )}
 
           </div>
-
         )}
 
       </section>
-
     </main>
-  )
+  );
 }
 
-export default Dashboard
+export default Dashboard;

@@ -12,6 +12,9 @@ import {
   Search,
   UserRound,
   Users,
+  UserPlus,
+  Clock3,
+  Trash2,
   X,
 } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
@@ -21,6 +24,7 @@ import '../styles/AdminDashboard.css'
 type Section =
   | 'overview'
   | 'students'
+  | 'requests'
   | 'rooms'
   | 'complaints'
   | 'fees'
@@ -43,6 +47,20 @@ type Student = {
   year: string | null
   guardian_name: string | null
   guardian_phone: string | null
+}
+
+type StudentRequest = {
+  id: string
+  auth_user_id: string
+  full_name: string
+  email: string
+  phone: string | null
+  course: string | null
+  year: number | string | null
+  guardian_name: string | null
+  guardian_phone: string | null
+  status: 'pending' | 'approved' | 'rejected'
+  created_at: string
 }
 
 type Room = {
@@ -88,6 +106,19 @@ function AdminDashboard() {
 
   const [students, setStudents] =
     useState<Student[]>([])
+
+  // ==================================================
+  // REGISTRATION REQUESTS
+  // ==================================================
+
+  const [requests, setRequests] =
+    useState<StudentRequest[]>([])
+
+  const [loadingRequests, setLoadingRequests] =
+    useState(false)
+
+  const [processingRequest, setProcessingRequest] =
+    useState<string | null>(null)
 
   const [rooms, setRooms] =
     useState<Room[]>([])
@@ -230,6 +261,68 @@ function AdminDashboard() {
     }
 
     setLoadingStudents(false)
+  }
+
+  // ==================================================
+  // LOAD REGISTRATION REQUESTS
+  // ==================================================
+
+  const loadRequests = async () => {
+    setLoadingRequests(true)
+    setError('')
+
+    try {
+      const {
+        data,
+        error: requestError,
+      } = await supabase
+        .from('student_requests')
+        .select(`
+          id,
+          auth_user_id,
+          full_name,
+          email,
+          phone,
+          course,
+          year,
+          guardian_name,
+          guardian_phone,
+          status,
+          created_at
+        `)
+        .order('created_at', {
+          ascending: false,
+        })
+
+      if (requestError) {
+        console.error(
+          'Load registration requests error:',
+          requestError
+        )
+
+        setError(
+          `Registration requests error: ${requestError.message}`
+        )
+        setRequests([])
+        return
+      }
+
+      setRequests(
+        (data || []) as StudentRequest[]
+      )
+    } catch (err) {
+      console.error(err)
+
+      setError(
+        err instanceof Error
+          ? err.message
+          : 'Failed to load registration requests.'
+      )
+
+      setRequests([])
+    } finally {
+      setLoadingRequests(false)
+    }
   }
 
   // ==================================================
@@ -564,6 +657,7 @@ function AdminDashboard() {
 
   useEffect(() => {
     loadStudents()
+    loadRequests()
     loadRooms()
     loadComplaints()
     loadFees()
@@ -582,6 +676,10 @@ function AdminDashboard() {
 
     if (section === 'students') {
       loadStudents()
+    }
+
+    if (section === 'requests') {
+      loadRequests()
     }
 
     if (section === 'rooms') {
@@ -609,6 +707,147 @@ function AdminDashboard() {
     )
 
     navigate('/admin-login')
+  }
+
+  // ==================================================
+  // APPROVE REGISTRATION REQUEST
+  // ==================================================
+
+  const approveRequest = async (
+    request: StudentRequest
+  ) => {
+    const confirmed = window.confirm(
+      `Approve registration for ${request.full_name}?`
+    )
+
+    if (!confirmed) return
+
+    setError('')
+    setProcessingRequest(request.id)
+
+    try {
+      const {
+        data,
+        error: approveError,
+      } = await supabase.rpc(
+        'approve_student_request',
+        {
+          p_request_id: request.id,
+        }
+      )
+
+      if (approveError) {
+        console.error(
+          'Approve request error:',
+          approveError
+        )
+
+        setError(
+          approveError.message ||
+            'Failed to approve registration request.'
+        )
+        return
+      }
+
+      if (
+        data &&
+        typeof data === 'object' &&
+        'success' in data &&
+        data.success === false
+      ) {
+        setError(
+          'Failed to approve registration request.'
+        )
+        return
+      }
+
+      await loadRequests()
+      await loadStudents()
+
+      alert(
+        `${request.full_name} has been approved successfully.`
+      )
+    } catch (err) {
+      console.error(err)
+
+      setError(
+        err instanceof Error
+          ? err.message
+          : 'Something went wrong while approving the request.'
+      )
+    } finally {
+      setProcessingRequest(null)
+    }
+  }
+
+  // ==================================================
+  // REJECT REGISTRATION REQUEST
+  // ==================================================
+
+  const rejectRequest = async (
+    request: StudentRequest
+  ) => {
+    const confirmed = window.confirm(
+      `Reject registration for ${request.full_name}?`
+    )
+
+    if (!confirmed) return
+
+    setError('')
+    setProcessingRequest(request.id)
+
+    try {
+      const {
+        data,
+        error: rejectError,
+      } = await supabase.rpc(
+        'reject_student_request',
+        {
+          p_request_id: request.id,
+        }
+      )
+
+      if (rejectError) {
+        console.error(
+          'Reject request error:',
+          rejectError
+        )
+
+        setError(
+          rejectError.message ||
+            'Failed to reject registration request.'
+        )
+        return
+      }
+
+      if (
+        data &&
+        typeof data === 'object' &&
+        'success' in data &&
+        data.success === false
+      ) {
+        setError(
+          'Failed to reject registration request.'
+        )
+        return
+      }
+
+      await loadRequests()
+
+      alert(
+        `${request.full_name}'s registration request has been rejected.`
+      )
+    } catch (err) {
+      console.error(err)
+
+      setError(
+        err instanceof Error
+          ? err.message
+          : 'Something went wrong while rejecting the request.'
+      )
+    } finally {
+      setProcessingRequest(null)
+    }
   }
 
   // ==================================================
@@ -946,6 +1185,115 @@ function AdminDashboard() {
       setError(error.message)
     } else {
       await loadRooms()
+    }
+  }
+
+  // ==================================================
+  // REMOVE ROOM
+  // ==================================================
+
+  const removeRoom = async (room: Room) => {
+    setError('')
+
+    // Safety check: never remove a room that still has students.
+    if (Number(room.occupied || 0) > 0) {
+      setError(
+        `Room ${room.room_number} cannot be removed because it still has ${room.occupied} occupied bed${room.occupied === 1 ? '' : 's'}. Reassign the students first.`
+      )
+      return
+    }
+
+    const { count, error: allocationError } =
+      await supabase
+        .from('room_allocations')
+        .select('student_id', {
+          count: 'exact',
+          head: true,
+        })
+        .eq('room_id', room.id)
+
+    if (allocationError) {
+      console.error(
+        'Check room allocations error:',
+        allocationError
+      )
+
+      setError(
+        allocationError.message
+      )
+      return
+    }
+
+    // Also protect against inconsistent occupied counts in the database.
+    if ((count || 0) > 0) {
+      setError(
+        `Room ${room.room_number} still has student allocations. Reassign or remove those allocations before deleting the room.`
+      )
+      return
+    }
+
+    const confirmed =
+      window.confirm(
+        `Are you sure you want to remove room ${room.room_number}? This action cannot be undone.`
+      )
+
+    if (!confirmed) {
+      return
+    }
+
+    try {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession()
+
+      if (!session) {
+        setError(
+          'Your admin session has expired. Please log in again.'
+        )
+
+        navigate('/admin-login', {
+          replace: true,
+        })
+        return
+      }
+
+      const { error: deleteError } =
+        await supabase
+          .from('rooms')
+          .delete()
+          .eq('id', room.id)
+
+      if (deleteError) {
+        console.error(
+          'Remove room error:',
+          deleteError
+        )
+
+        setError(
+          deleteError.message ||
+            `Failed to remove room ${room.room_number}.`
+        )
+        return
+      }
+
+      if (selectedRoom?.id === room.id) {
+        closeRoomMembers()
+      }
+
+      await loadRooms()
+      await loadComplaints()
+
+      alert(
+        `Room ${room.room_number} removed successfully.`
+      )
+    } catch (err) {
+      console.error(err)
+
+      setError(
+        err instanceof Error
+          ? err.message
+          : `Something went wrong while removing room ${room.room_number}.`
+      )
     }
   }
 
@@ -1484,6 +1832,19 @@ function AdminDashboard() {
           )
     )
 
+  const filteredRequests =
+    requests.filter(request =>
+      `${request.full_name} ${request.email} ${
+        request.course || ''
+      } ${request.phone || ''} ${
+        request.status
+      }`
+        .toLowerCase()
+        .includes(
+          search.toLowerCase()
+        )
+    )
+
   // ==================================================
   // FEE HELPERS
   // ==================================================
@@ -1699,6 +2060,55 @@ function AdminDashboard() {
             type="button"
             className={
               active ===
+              'requests'
+                ? 'active'
+                : ''
+            }
+            onClick={() =>
+              openSection(
+                'requests'
+              )
+            }
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+            }}
+          >
+            <UserPlus size={17} />
+            Registration Requests
+            {requests.filter(
+              request =>
+                request.status === 'pending'
+            ).length > 0 && (
+              <span
+                style={{
+                  marginLeft: 'auto',
+                  minWidth: 21,
+                  height: 21,
+                  padding: '0 5px',
+                  borderRadius: 999,
+                  background: '#ef4444',
+                  color: '#fff',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontSize: 11,
+                  fontWeight: 800,
+                }}
+              >
+                {requests.filter(
+                  request =>
+                    request.status === 'pending'
+                ).length}
+              </span>
+            )}
+          </button>
+
+          <button
+            type="button"
+            className={
+              active ===
               'rooms'
                 ? 'active'
                 : ''
@@ -1782,6 +2192,8 @@ function AdminDashboard() {
               {active ===
               'overview'
                 ? 'Good afternoon, Admin.'
+                : active === 'requests'
+                ? 'Registration Requests'
                 : active
                     .charAt(0)
                     .toUpperCase() +
@@ -1855,6 +2267,27 @@ function AdminDashboard() {
                 <p>
                   Registered
                   students
+                </p>
+              </article>
+
+              <article>
+                <span>
+                  <UserPlus />
+                </span>
+
+                <small>
+                  PENDING REQUESTS
+                </small>
+
+                <strong>
+                  {requests.filter(
+                    request =>
+                      request.status === 'pending'
+                  ).length}
+                </strong>
+
+                <p>
+                  Awaiting approval
                 </p>
               </article>
 
@@ -2098,6 +2531,86 @@ function AdminDashboard() {
 
             </div>
 
+            {requests.some(
+              request =>
+                request.status === 'pending'
+            ) && (
+              <section
+                className="admin-panel"
+                style={{
+                  marginTop: 20,
+                }}
+              >
+                <div className="admin-panel-title">
+                  <div>
+                    <p className="admin-label">
+                      ACTION REQUIRED
+                    </p>
+                    <h2>
+                      New registration requests
+                    </h2>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() =>
+                      openSection('requests')
+                    }
+                  >
+                    Review requests
+                  </button>
+                </div>
+
+                <div
+                  style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: 10,
+                  }}
+                >
+                  {requests
+                    .filter(
+                      request =>
+                        request.status === 'pending'
+                    )
+                    .slice(0, 5)
+                    .map(request => (
+                      <div
+                        key={request.id}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          gap: 15,
+                          padding: 14,
+                          borderRadius: 12,
+                          border: '1px solid rgba(255,255,255,0.08)',
+                          background: 'rgba(255,255,255,0.025)',
+                        }}
+                      >
+                        <div>
+                          <strong>
+                            {request.full_name}
+                          </strong>
+                          <span
+                            style={{
+                              display: 'block',
+                              marginTop: 4,
+                              opacity: 0.6,
+                              fontSize: 13,
+                            }}
+                          >
+                            {request.email} · {request.course || 'Course not provided'}
+                          </span>
+                        </div>
+
+                        <Clock3 size={18} />
+                      </div>
+                    ))}
+                </div>
+              </section>
+            )}
+
           </>
         )}
 
@@ -2252,6 +2765,404 @@ function AdminDashboard() {
               )}
 
             </div>
+
+          </section>
+        )}
+
+        {/* =================================================
+            REGISTRATION REQUESTS
+        ================================================= */}
+
+        {active ===
+          'requests' && (
+          <section className="admin-panel">
+
+            <div className="admin-panel-title">
+
+              <div>
+                <p className="admin-label">
+                  STUDENT ONBOARDING
+                </p>
+
+                <h2>
+                  Registration Requests
+                </h2>
+              </div>
+
+              <div
+                style={{
+                  display: 'flex',
+                  gap: 10,
+                  alignItems: 'center',
+                }}
+              >
+                <button
+                  type="button"
+                  onClick={loadRequests}
+                  disabled={loadingRequests}
+                >
+                  {loadingRequests
+                    ? 'Refreshing...'
+                    : 'Refresh'}
+                </button>
+
+                <UserPlus size={20} />
+              </div>
+            </div>
+
+            <div className="admin-search">
+              <Search size={17} />
+
+              <input
+                value={search}
+                onChange={e =>
+                  setSearch(e.target.value)
+                }
+                placeholder="Search registration requests..."
+              />
+            </div>
+
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(3, minmax(0, 1fr))',
+                gap: 12,
+                marginBottom: 20,
+              }}
+            >
+              <div
+                style={{
+                  padding: 15,
+                  borderRadius: 12,
+                  background: 'rgba(245,158,11,0.08)',
+                  border: '1px solid rgba(245,158,11,0.18)',
+                }}
+              >
+                <small style={{ opacity: 0.6 }}>
+                  PENDING
+                </small>
+                <strong
+                  style={{
+                    display: 'block',
+                    marginTop: 5,
+                    fontSize: 24,
+                  }}
+                >
+                  {requests.filter(
+                    request =>
+                      request.status === 'pending'
+                  ).length}
+                </strong>
+              </div>
+
+              <div
+                style={{
+                  padding: 15,
+                  borderRadius: 12,
+                  background: 'rgba(34,197,94,0.08)',
+                  border: '1px solid rgba(34,197,94,0.18)',
+                }}
+              >
+                <small style={{ opacity: 0.6 }}>
+                  APPROVED
+                </small>
+                <strong
+                  style={{
+                    display: 'block',
+                    marginTop: 5,
+                    fontSize: 24,
+                  }}
+                >
+                  {requests.filter(
+                    request =>
+                      request.status === 'approved'
+                  ).length}
+                </strong>
+              </div>
+
+              <div
+                style={{
+                  padding: 15,
+                  borderRadius: 12,
+                  background: 'rgba(239,68,68,0.08)',
+                  border: '1px solid rgba(239,68,68,0.18)',
+                }}
+              >
+                <small style={{ opacity: 0.6 }}>
+                  REJECTED
+                </small>
+                <strong
+                  style={{
+                    display: 'block',
+                    marginTop: 5,
+                    fontSize: 24,
+                  }}
+                >
+                  {requests.filter(
+                    request =>
+                      request.status === 'rejected'
+                  ).length}
+                </strong>
+              </div>
+            </div>
+
+            {loadingRequests ? (
+              <div
+                style={{
+                  padding: 40,
+                  textAlign: 'center',
+                  opacity: 0.7,
+                }}
+              >
+                Loading registration requests...
+              </div>
+            ) : filteredRequests.length === 0 ? (
+              <div
+                style={{
+                  padding: 50,
+                  textAlign: 'center',
+                  border: '1px dashed rgba(255,255,255,0.14)',
+                  borderRadius: 14,
+                }}
+              >
+                <UserPlus
+                  size={42}
+                  style={{
+                    marginBottom: 10,
+                    opacity: 0.5,
+                  }}
+                />
+
+                <h3>
+                  No registration requests
+                </h3>
+
+                <p
+                  style={{
+                    opacity: 0.6,
+                    margin: '8px 0 0',
+                  }}
+                >
+                  New Google student registrations will appear here.
+                </p>
+              </div>
+            ) : (
+              <div
+                style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 14,
+                }}
+              >
+                {filteredRequests.map(request => (
+                  <article
+                    key={request.id}
+                    style={{
+                      padding: 18,
+                      borderRadius: 14,
+                      border: '1px solid rgba(255,255,255,0.08)',
+                      background: 'rgba(255,255,255,0.025)',
+                    }}
+                  >
+                    <div
+                      style={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'flex-start',
+                        gap: 15,
+                      }}
+                    >
+                      <div>
+                        <div
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 10,
+                          }}
+                        >
+                          <UserRound size={20} />
+                          <strong
+                            style={{
+                              fontSize: 18,
+                            }}
+                          >
+                            {request.full_name}
+                          </strong>
+                        </div>
+
+                        <p
+                          style={{
+                            margin: '7px 0 0',
+                            opacity: 0.65,
+                          }}
+                        >
+                          {request.email}
+                        </p>
+                      </div>
+
+                      <span
+                        style={{
+                          padding: '6px 10px',
+                          borderRadius: 999,
+                          fontSize: 12,
+                          fontWeight: 700,
+                          background:
+                            request.status === 'pending'
+                              ? 'rgba(245,158,11,0.12)'
+                              : request.status === 'approved'
+                              ? 'rgba(34,197,94,0.12)'
+                              : 'rgba(239,68,68,0.12)',
+                          color:
+                            request.status === 'pending'
+                              ? '#fbbf24'
+                              : request.status === 'approved'
+                              ? '#4ade80'
+                              : '#f87171',
+                        }}
+                      >
+                        {request.status.toUpperCase()}
+                      </span>
+                    </div>
+
+                    <div
+                      style={{
+                        display: 'grid',
+                        gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
+                        gap: 12,
+                        marginTop: 18,
+                        paddingTop: 15,
+                        borderTop: '1px solid rgba(255,255,255,0.07)',
+                      }}
+                    >
+                      <div>
+                        <small style={{ opacity: 0.45 }}>PHONE</small>
+                        <strong
+                          style={{
+                            display: 'block',
+                            marginTop: 4,
+                          }}
+                        >
+                          {request.phone || '—'}
+                        </strong>
+                      </div>
+
+                      <div>
+                        <small style={{ opacity: 0.45 }}>COURSE</small>
+                        <strong
+                          style={{
+                            display: 'block',
+                            marginTop: 4,
+                          }}
+                        >
+                          {request.course || '—'}
+                        </strong>
+                      </div>
+
+                      <div>
+                        <small style={{ opacity: 0.45 }}>YEAR</small>
+                        <strong
+                          style={{
+                            display: 'block',
+                            marginTop: 4,
+                          }}
+                        >
+                          {request.year || '—'}
+                        </strong>
+                      </div>
+
+                      <div>
+                        <small style={{ opacity: 0.45 }}>GUARDIAN</small>
+                        <strong
+                          style={{
+                            display: 'block',
+                            marginTop: 4,
+                          }}
+                        >
+                          {request.guardian_name || '—'}
+                        </strong>
+                      </div>
+
+                      <div>
+                        <small style={{ opacity: 0.45 }}>GUARDIAN PHONE</small>
+                        <strong
+                          style={{
+                            display: 'block',
+                            marginTop: 4,
+                          }}
+                        >
+                          {request.guardian_phone || '—'}
+                        </strong>
+                      </div>
+
+                      <div>
+                        <small style={{ opacity: 0.45 }}>REQUESTED</small>
+                        <strong
+                          style={{
+                            display: 'block',
+                            marginTop: 4,
+                          }}
+                        >
+                          {new Date(request.created_at).toLocaleDateString(
+                            'en-IN',
+                            {
+                              day: '2-digit',
+                              month: 'short',
+                              year: 'numeric',
+                            }
+                          )}
+                        </strong>
+                      </div>
+                    </div>
+
+                    {request.status === 'pending' && (
+                      <div
+                        style={{
+                          display: 'flex',
+                          justifyContent: 'flex-end',
+                          gap: 10,
+                          marginTop: 18,
+                          paddingTop: 15,
+                          borderTop: '1px solid rgba(255,255,255,0.07)',
+                        }}
+                      >
+                        <button
+                          type="button"
+                          disabled={
+                            processingRequest === request.id
+                          }
+                          onClick={() =>
+                            rejectRequest(request)
+                          }
+                          style={{
+                            border: '1px solid rgba(239,68,68,0.3)',
+                            background: 'rgba(239,68,68,0.08)',
+                            color: '#f87171',
+                          }}
+                        >
+                          {processingRequest === request.id
+                            ? 'Processing...'
+                            : 'Reject'}
+                        </button>
+
+                        <button
+                          type="button"
+                          disabled={
+                            processingRequest === request.id
+                          }
+                          onClick={() =>
+                            approveRequest(request)
+                          }
+                        >
+                          {processingRequest === request.id
+                            ? 'Processing...'
+                            : 'Approve Student'}
+                        </button>
+                      </div>
+                    )}
+                  </article>
+                ))}
+              </div>
+            )}
 
           </section>
         )}
@@ -2413,6 +3324,36 @@ function AdminDashboard() {
                           }}
                         />
                         View Members
+                      </button>
+
+                      <button
+                        type="button"
+                        className="admin-wide-button"
+                        onClick={() =>
+                          removeRoom(
+                            room
+                          )
+                        }
+                        disabled={
+                          room.occupied > 0
+                        }
+                        style={{
+                          marginTop: 8,
+                          border: '1px solid rgba(239,68,68,0.35)',
+                          background: 'rgba(239,68,68,0.08)',
+                          color: '#f87171',
+                          opacity: room.occupied > 0 ? 0.5 : 1,
+                          cursor: room.occupied > 0 ? 'not-allowed' : 'pointer',
+                        }}
+                      >
+                        <Trash2
+                          size={17}
+                          style={{
+                            marginRight: 6,
+                            verticalAlign: 'middle',
+                          }}
+                        />
+                        Remove Room
                       </button>
 
                     </div>
