@@ -158,6 +158,48 @@ function AdminDashboard() {
     useState(false)
 
   // ==================================================
+  // STUDENT ROOM ASSIGNMENT
+  // ==================================================
+
+  const [studentRoomMap, setStudentRoomMap] =
+    useState<Record<string, number>>({})
+
+  const [selectedStudent, setSelectedStudent] =
+    useState<Student | null>(null)
+
+  const [showAssignRoomModal, setShowAssignRoomModal] =
+    useState(false)
+
+  const [assigningStudentId, setAssigningStudentId] =
+    useState<string | null>(null)
+
+  // ==================================================
+  // FEE ASSIGNMENT
+  // ==================================================
+
+  const [selectedFeeStudent, setSelectedFeeStudent] =
+    useState<Student | null>(null)
+
+  const [showAssignFeeModal, setShowAssignFeeModal] =
+    useState(false)
+
+  const [feeAmountInput, setFeeAmountInput] =
+    useState('')
+
+  const [feeDueDateInput, setFeeDueDateInput] =
+    useState(
+      new Date()
+        .toISOString()
+        .split('T')[0]
+    )
+
+  const [feeDescriptionInput, setFeeDescriptionInput] =
+    useState('Hostel Fee')
+
+  const [savingFee, setSavingFee] =
+    useState(false)
+
+  // ==================================================
   // ADMIN USER
   // ==================================================
 
@@ -256,8 +298,77 @@ function AdminDashboard() {
 
       setError(error.message)
       setStudents([])
+      setStudentRoomMap({})
+      setLoadingStudents(false)
+      return
+    }
+
+    const studentData =
+      (data || []) as Student[]
+
+    setStudents(studentData)
+
+    if (studentData.length === 0) {
+      setStudentRoomMap({})
+      setLoadingStudents(false)
+      return
+    }
+
+    const studentIds =
+      studentData.map(
+        student => student.id
+      )
+
+    const {
+      data: allocations,
+      error: allocationError,
+    } = await supabase
+      .from('room_allocations')
+      .select(`
+        student_id,
+        room_id
+      `)
+      .in(
+        'student_id',
+        studentIds
+      )
+
+    if (allocationError) {
+      console.error(
+        'Load student room allocations error:',
+        allocationError
+      )
+
+      // Keep the students visible even if the room lookup fails.
+      setStudentRoomMap({})
+      setError(
+        `Could not load student room assignments: ${allocationError.message}`
+      )
     } else {
-      setStudents(data || [])
+      const nextRoomMap: Record<
+        string,
+        number
+      > = {}
+
+      ;(allocations || []).forEach(
+        allocation => {
+          if (
+            allocation.student_id &&
+            allocation.room_id !== null &&
+            allocation.room_id !== undefined
+          ) {
+            nextRoomMap[
+              allocation.student_id
+            ] = Number(
+              allocation.room_id
+            )
+          }
+        }
+      )
+
+      setStudentRoomMap(
+        nextRoomMap
+      )
     }
 
     setLoadingStudents(false)
@@ -1298,128 +1409,207 @@ function AdminDashboard() {
   }
 
   // ==================================================
+  // STUDENT ROOM HELPERS
+  // ==================================================
+
+  const getStudentRoom = (
+    studentId: string
+  ) => {
+    const roomId =
+      studentRoomMap[studentId]
+
+    if (roomId === undefined) {
+      return null
+    }
+
+    return (
+      rooms.find(
+        room =>
+          room.id === roomId
+      ) || null
+    )
+  }
+
+  const availableRooms =
+    rooms.filter(
+      room =>
+        room.status !== 'Maintenance' &&
+        Number(room.occupied || 0) <
+          Number(room.capacity || 0)
+    )
+
+  const openAssignRoomModal = (
+    student: Student
+  ) => {
+    setError('')
+
+    const currentRoom =
+      getStudentRoom(
+        student.id
+      )
+
+    if (currentRoom) {
+      setError(
+        `${student.full_name} is already assigned to room ${currentRoom.room_number}.`
+      )
+      return
+    }
+
+    setSelectedStudent(student)
+    setShowAssignRoomModal(true)
+  }
+
+  const closeAssignRoomModal = () => {
+    if (assigningStudentId) {
+      return
+    }
+
+    setShowAssignRoomModal(false)
+    setSelectedStudent(null)
+    setError('')
+  }
+
+  // ==================================================
   // ASSIGN STUDENT TO ROOM
   // ==================================================
 
-  const assignStudentToRoom =
-    async (
-      roomId: number
-    ) => {
-      const room =
-        rooms.find(
-          r => r.id === roomId
-        )
+  const assignStudentToRoom = async (
+    studentId: string,
+    roomId: number
+  ) => {
+    const student =
+      students.find(
+        item =>
+          item.id === studentId
+      )
 
-      if (!room) {
-        setError(
-          'Room not found.'
-        )
-        return
-      }
+    const room =
+      rooms.find(
+        item =>
+          item.id === roomId
+      )
 
-      if (
-        room.status ===
-        'Maintenance'
-      ) {
-        setError(
-          'This room is under maintenance.'
-        )
-        return
-      }
-
-      if (
-        room.occupied >=
-        room.capacity
-      ) {
-        setError(
-          'This room is already full.'
-        )
-        return
-      }
-
-      if (
-        students.length === 0
-      ) {
-        setError(
-          'There are no students available to assign.'
-        )
-        return
-      }
-
-      const email =
-        window.prompt(
-          `Enter the student's email to assign to room ${room.room_number}:`
-        )
-
-      if (!email?.trim())
-        return
-
-      const student =
-        students.find(
-          s =>
-            s.email
-              .toLowerCase() ===
-            email
-              .trim()
-              .toLowerCase()
-        )
-
-      if (!student) {
-        setError(
-          'No student found with that email.'
-        )
-        return
-      }
-
-      setError('')
-
-      try {
-        const {
-          data,
-          error,
-        } =
-          await supabase.rpc(
-            'assign_student_to_room',
-            {
-              p_student_id:
-                student.id,
-              p_room_id:
-                roomId,
-            }
-          )
-
-        if (error) {
-          setError(
-            error.message ||
-              'Failed to assign student.'
-          )
-          return
-        }
-
-        if (!data?.success) {
-          setError(
-            data?.error ||
-              'Failed to assign student.'
-          )
-          return
-        }
-
-        await loadRooms()
-        await loadComplaints()
-
-        alert(
-          `${student.full_name} has been assigned to room ${room.room_number}.`
-        )
-      } catch (err) {
-        console.error(err)
-
-        setError(
-          err instanceof Error
-            ? err.message
-            : 'Something went wrong while assigning the room.'
-        )
-      }
+    if (!student) {
+      setError(
+        'Student not found.'
+      )
+      return
     }
+
+    if (!room) {
+      setError(
+        'Room not found.'
+      )
+      return
+    }
+
+    if (
+      studentRoomMap[
+        student.id
+      ] !== undefined
+    ) {
+      const currentRoom =
+        getStudentRoom(
+          student.id
+        )
+
+      setError(
+        currentRoom
+          ? `${student.full_name} is already assigned to room ${currentRoom.room_number}.`
+          : `${student.full_name} is already assigned to a room.`
+      )
+      return
+    }
+
+    if (
+      room.status ===
+      'Maintenance'
+    ) {
+      setError(
+        `Room ${room.room_number} is under maintenance.`
+      )
+      return
+    }
+
+    if (
+      Number(room.occupied || 0) >=
+      Number(room.capacity || 0)
+    ) {
+      setError(
+        `Room ${room.room_number} is already full.`
+      )
+      return
+    }
+
+    setError('')
+    setAssigningStudentId(
+      student.id
+    )
+
+    try {
+      const {
+        data,
+        error: assignmentError,
+      } = await supabase.rpc(
+        'assign_student_to_room',
+        {
+          p_student_id: student.id,
+          p_room_id: room.id,
+        }
+      )
+
+      if (assignmentError) {
+        console.error(
+          'Assign room error:',
+          assignmentError
+        )
+
+        setError(
+          assignmentError.message ||
+            'Failed to assign student to the room.'
+        )
+        return
+      }
+
+      if (
+        data &&
+        typeof data === 'object' &&
+        'success' in data &&
+        data.success === false
+      ) {
+        setError(
+          'error' in data &&
+          typeof data.error === 'string'
+            ? data.error
+            : 'Failed to assign student to the room.'
+        )
+        return
+      }
+
+      await Promise.all([
+        loadStudents(),
+        loadRooms(),
+        loadComplaints(),
+      ])
+
+      setShowAssignRoomModal(false)
+      setSelectedStudent(null)
+
+      alert(
+        `${student.full_name} has been assigned to room ${room.room_number}.`
+      )
+    } catch (err) {
+      console.error(err)
+
+      setError(
+        err instanceof Error
+          ? err.message
+          : 'Something went wrong while assigning the room.'
+      )
+    } finally {
+      setAssigningStudentId(null)
+    }
+  }
 
   // ==================================================
   // VIEW ROOM MEMBERS
@@ -1536,56 +1726,58 @@ function AdminDashboard() {
   }
 
   // ==================================================
-  // ADD FEE
+  // FEE ASSIGNMENT MODAL
   // ==================================================
 
-  const addFee = async () => {
+  const openAssignFeeModal = (
+    student?: Student
+  ) => {
+    setError('')
+    setSelectedFeeStudent(
+      student || null
+    )
+    setFeeAmountInput('')
+    setFeeDueDateInput(
+      new Date()
+        .toISOString()
+        .split('T')[0]
+    )
+    setFeeDescriptionInput(
+      'Hostel Fee'
+    )
+    setShowAssignFeeModal(true)
+  }
+
+  const closeAssignFeeModal = () => {
+    if (savingFee) return
+
+    setShowAssignFeeModal(false)
+    setSelectedFeeStudent(null)
+    setFeeAmountInput('')
+    setFeeDueDateInput(
+      new Date()
+        .toISOString()
+        .split('T')[0]
+    )
+    setFeeDescriptionInput(
+      'Hostel Fee'
+    )
+    setError('')
+  }
+
+  const saveFee = async () => {
     setError('')
 
-    if (students.length === 0) {
-      await loadStudents()
-    }
-
-    const studentEmail =
-      window.prompt(
-        'Enter the student email:'
-      )
-
-    if (!studentEmail?.trim())
-      return
-
-    const student =
-      students.find(
-        s =>
-          s.email
-            .toLowerCase() ===
-          studentEmail
-            .trim()
-            .toLowerCase()
-      )
-
-    if (!student) {
+    if (!selectedFeeStudent) {
       setError(
-        'Student not found. Please use the exact student email.'
+        'Please select a student.'
       )
       return
     }
 
-    const amountText =
-      window.prompt(
-        'Enter total fee amount (₹):'
-      )
-
-    if (!amountText?.trim())
-      return
-
-    const amount =
-      Number(
-        amountText.replace(
-          /,/g,
-          ''
-        )
-      )
+    const amount = Number(
+      feeAmountInput.replace(/,/g, '').trim()
+    )
 
     if (
       !Number.isFinite(amount) ||
@@ -1597,44 +1789,30 @@ function AdminDashboard() {
       return
     }
 
-    const dueDate =
-      window.prompt(
-        'Enter due date (YYYY-MM-DD):',
-        new Date()
-          .toISOString()
-          .split('T')[0]
+    if (!feeDueDateInput.trim()) {
+      setError(
+        'Please select a due date.'
       )
-
-    if (!dueDate?.trim())
       return
+    }
 
-    const description =
-      window.prompt(
-        'Fee description:',
-        'Hostel Fee'
-      )
-
-    setAddingFee(true)
+    setSavingFee(true)
 
     try {
-      const {
-        error: insertError,
-      } =
+      const { error: insertError } =
         await supabase
           .from('fees')
           .insert({
             student_id:
-              student.id,
+              selectedFeeStudent.id,
             amount,
             paid_amount: 0,
             due_date:
-              dueDate.trim(),
-            status:
-              'Pending',
-            payment_date:
-              null,
+              feeDueDateInput.trim(),
+            status: 'Pending',
+            payment_date: null,
             description:
-              description?.trim() ||
+              feeDescriptionInput.trim() ||
               'Hostel Fee',
           })
 
@@ -1647,15 +1825,31 @@ function AdminDashboard() {
         setError(
           `Could not add fee: ${insertError.message}`
         )
-
         return
       }
 
-      alert(
-        `Fee of ${formatCurrency(amount)} assigned successfully to ${student.full_name}.`
+      const studentName =
+        selectedFeeStudent.full_name
+      const formattedAmount =
+        formatCurrency(amount)
+
+      setShowAssignFeeModal(false)
+      setSelectedFeeStudent(null)
+      setFeeAmountInput('')
+      setFeeDueDateInput(
+        new Date()
+          .toISOString()
+          .split('T')[0]
+      )
+      setFeeDescriptionInput(
+        'Hostel Fee'
       )
 
       await loadFees()
+
+      alert(
+        `Fee of ${formattedAmount} assigned successfully to ${studentName}.`
+      )
     } catch (err) {
       console.error(err)
 
@@ -1665,7 +1859,7 @@ function AdminDashboard() {
           : 'Failed to add fee.'
       )
     } finally {
-      setAddingFee(false)
+      setSavingFee(false)
     }
   }
 
@@ -2683,7 +2877,7 @@ function AdminDashboard() {
                 </span>
 
                 <span>
-                  Status
+                  Room / Actions
                 </span>
 
               </div>
@@ -2743,7 +2937,104 @@ function AdminDashboard() {
                         }
                       </span>
 
-                      <span className="table-status">
+                      <span
+                        className="table-status"
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 8,
+                          flexWrap: 'wrap',
+                        }}
+                      >
+
+                        {getStudentRoom(
+                          student.id
+                        ) ? (
+                          <span
+                            style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              padding: '7px 10px',
+                              borderRadius: 8,
+                              background: 'rgba(34,197,94,0.10)',
+                              border: '1px solid rgba(34,197,94,0.25)',
+                              color: '#4ade80',
+                              fontSize: 12,
+                              fontWeight: 700,
+                              whiteSpace: 'nowrap',
+                            }}
+                          >
+                            Room {
+                              getStudentRoom(
+                                student.id
+                              )?.room_number
+                            }
+                          </span>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() =>
+                              openAssignRoomModal(
+                                student
+                              )
+                            }
+                            disabled={
+                              availableRooms.length === 0 ||
+                              assigningStudentId !== null
+                            }
+                            title={
+                              availableRooms.length === 0
+                                ? 'No empty beds are available.'
+                                : 'Assign this student to a room'
+                            }
+                            style={{
+                              border: '1px solid rgba(59,130,246,0.35)',
+                              background: 'rgba(59,130,246,0.10)',
+                              color: '#93c5fd',
+                              borderRadius: 8,
+                              padding: '7px 10px',
+                              cursor:
+                                availableRooms.length === 0 || assigningStudentId !== null
+                                  ? 'not-allowed'
+                                  : 'pointer',
+                              fontWeight: 700,
+                              fontSize: 12,
+                              opacity: availableRooms.length === 0 ? 0.55 : 1,
+                              whiteSpace: 'nowrap',
+                            }}
+                          >
+                            Assign Room
+                          </button>
+                        )}
+
+                        <button
+                          type="button"
+                          onClick={() =>
+                            openAssignFeeModal(
+                              student
+                            )
+                          }
+                          disabled={
+                            savingFee
+                          }
+                          title="Assign a fee to this student"
+                          style={{
+                            border: '1px solid rgba(249,115,22,0.35)',
+                            background: 'rgba(249,115,22,0.10)',
+                            color: '#fb923c',
+                            borderRadius: 8,
+                            padding: '7px 10px',
+                            cursor: savingFee
+                              ? 'not-allowed'
+                              : 'pointer',
+                            fontWeight: 700,
+                            fontSize: 12,
+                            whiteSpace: 'nowrap',
+                            opacity: savingFee ? 0.6 : 1,
+                          }}
+                        >
+                          Assign Fee
+                        </button>
 
                         <button
                           type="button"
@@ -3264,42 +3555,19 @@ function AdminDashboard() {
                         }
                       </small>
 
-                      {room.status ===
-                        'Available' && (
-                        <button
-                          type="button"
-                          className="admin-wide-button"
-                          onClick={() =>
-                            assignStudentToRoom(
-                              room.id
-                            )
-                          }
-                        >
-                          Assign Student
-                        </button>
-                      )}
-
-                      {room.status ===
-                        'Full' && (
-                        <button
-                          type="button"
-                          className="admin-wide-button"
-                          disabled
-                        >
-                          Room Full
-                        </button>
-                      )}
-
-                      {room.status ===
-                        'Maintenance' && (
-                        <button
-                          type="button"
-                          className="admin-wide-button"
-                          disabled
-                        >
-                          Maintenance
-                        </button>
-                      )}
+                      <span
+                        style={{
+                          marginTop: 4,
+                          fontSize: 12,
+                          opacity: 0.7,
+                        }}
+                      >
+                        {room.status === 'Maintenance'
+                          ? 'Not available for assignment'
+                          : room.occupied >= room.capacity
+                          ? 'No beds available'
+                          : `${room.capacity - room.occupied} bed${room.capacity - room.occupied === 1 ? '' : 's'} available for assignment`}
+                      </span>
 
                       <button
                         type="button"
@@ -3596,7 +3864,7 @@ function AdminDashboard() {
 
                 <button
                   type="button"
-                  onClick={addFee}
+                  onClick={() => openAssignFeeModal()}
                   disabled={
                     addingFee ||
                     loadingFees
@@ -3741,8 +4009,8 @@ function AdminDashboard() {
 
                     <button
                       type="button"
-                      onClick={
-                        addFee
+                      onClick={() =>
+                        openAssignFeeModal()
                       }
                       disabled={
                         addingFee
@@ -4095,6 +4363,548 @@ function AdminDashboard() {
         )}
 
       </section>
+
+      {/* =================================================
+          ASSIGN ROOM MODAL
+      ================================================= */}
+
+      {showAssignRoomModal &&
+        selectedStudent && (
+        <div
+          onClick={closeAssignRoomModal}
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(0,0,0,0.65)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 10000,
+            padding: 20,
+          }}
+        >
+          <div
+            onClick={e =>
+              e.stopPropagation()
+            }
+            style={{
+              width: 'min(520px, 100%)',
+              maxHeight: '80vh',
+              overflowY: 'auto',
+              background: '#0b1020',
+              border: '1px solid rgba(255,255,255,0.12)',
+              borderRadius: 18,
+              padding: 24,
+              boxShadow: '0 25px 80px rgba(0,0,0,0.5)',
+            }}
+          >
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'flex-start',
+                justifyContent: 'space-between',
+                gap: 16,
+                marginBottom: 20,
+              }}
+            >
+              <div>
+                <p className="admin-label">
+                  ROOM ALLOCATION
+                </p>
+
+                <h2
+                  style={{
+                    margin: '4px 0',
+                  }}
+                >
+                  Assign Room
+                </h2>
+
+                <span
+                  style={{
+                    opacity: 0.7,
+                  }}
+                >
+                  {selectedStudent.full_name}
+                </span>
+              </div>
+
+              <button
+                type="button"
+                onClick={closeAssignRoomModal}
+                disabled={assigningStudentId !== null}
+                style={{
+                  border: 'none',
+                  background: 'transparent',
+                  color: 'inherit',
+                  cursor:
+                    assigningStudentId !== null
+                      ? 'not-allowed'
+                      : 'pointer',
+                  padding: 8,
+                  opacity:
+                    assigningStudentId !== null
+                      ? 0.5
+                      : 1,
+                }}
+              >
+                <X size={22} />
+              </button>
+            </div>
+
+            {availableRooms.length === 0 ? (
+              <div
+                style={{
+                  padding: 24,
+                  textAlign: 'center',
+                  borderRadius: 14,
+                  border: '1px dashed rgba(255,255,255,0.14)',
+                  background: 'rgba(255,255,255,0.025)',
+                }}
+              >
+                <BedDouble
+                  size={38}
+                  style={{
+                    marginBottom: 10,
+                    opacity: 0.55,
+                  }}
+                />
+
+                <h3
+                  style={{
+                    margin: '0 0 6px',
+                  }}
+                >
+                  No empty beds available
+                </h3>
+
+                <p
+                  style={{
+                    margin: 0,
+                    opacity: 0.65,
+                    lineHeight: 1.5,
+                  }}
+                >
+                  All rooms are either full or under maintenance.
+                </p>
+              </div>
+            ) : (
+              <div
+                style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 10,
+                }}
+              >
+                <p
+                  style={{
+                    margin: '0 0 4px',
+                    opacity: 0.65,
+                    fontSize: 13,
+                  }}
+                >
+                  Select a room with at least one empty bed.
+                </p>
+
+                {availableRooms.map(room => {
+                  const emptyBeds =
+                    Math.max(
+                      Number(room.capacity || 0) -
+                        Number(room.occupied || 0),
+                      0
+                    )
+
+                  return (
+                    <button
+                      key={room.id}
+                      type="button"
+                      disabled={assigningStudentId !== null}
+                      onClick={() =>
+                        assignStudentToRoom(
+                          selectedStudent.id,
+                          room.id
+                        )
+                      }
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        gap: 15,
+                        width: '100%',
+                        padding: '14px 16px',
+                        borderRadius: 12,
+                        border: '1px solid rgba(59,130,246,0.22)',
+                        background: 'rgba(59,130,246,0.06)',
+                        color: 'inherit',
+                        textAlign: 'left',
+                        cursor:
+                          assigningStudentId !== null
+                            ? 'not-allowed'
+                            : 'pointer',
+                        opacity:
+                          assigningStudentId !== null
+                            ? 0.6
+                            : 1,
+                      }}
+                    >
+                      <span>
+                        <strong
+                          style={{
+                            display: 'block',
+                            fontSize: 16,
+                          }}
+                        >
+                          Room {room.room_number}
+                        </strong>
+
+                        <span
+                          style={{
+                            display: 'block',
+                            marginTop: 4,
+                            opacity: 0.65,
+                            fontSize: 13,
+                          }}
+                        >
+                          Floor {room.floor} · {room.occupied}/{room.capacity} occupied
+                        </span>
+                      </span>
+
+                      <span
+                        style={{
+                          flexShrink: 0,
+                          padding: '6px 9px',
+                          borderRadius: 999,
+                          background: 'rgba(34,197,94,0.10)',
+                          border: '1px solid rgba(34,197,94,0.2)',
+                          color: '#4ade80',
+                          fontSize: 12,
+                          fontWeight: 700,
+                        }}
+                      >
+                        {emptyBeds} empty {emptyBeds === 1 ? 'bed' : 'beds'}
+                      </span>
+                    </button>
+                  )
+                })}
+              </div>
+            )}
+
+            <button
+              type="button"
+              className="admin-wide-button"
+              onClick={closeAssignRoomModal}
+              disabled={assigningStudentId !== null}
+              style={{
+                marginTop: 18,
+              }}
+            >
+              {assigningStudentId !== null
+                ? 'Assigning...'
+                : 'Cancel'}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* =================================================
+          ASSIGN FEE MODAL
+      ================================================= */}
+
+      {showAssignFeeModal && (
+        <div
+          onClick={closeAssignFeeModal}
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(0,0,0,0.65)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 10001,
+            padding: 20,
+          }}
+        >
+          <div
+            onClick={e =>
+              e.stopPropagation()
+            }
+            style={{
+              width: 'min(520px, 100%)',
+              background: '#0b1020',
+              border: '1px solid rgba(255,255,255,0.12)',
+              borderRadius: 18,
+              padding: 24,
+              boxShadow: '0 25px 80px rgba(0,0,0,0.5)',
+            }}
+          >
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'flex-start',
+                justifyContent: 'space-between',
+                gap: 16,
+                marginBottom: 22,
+              }}
+            >
+              <div>
+                <p className="admin-label">
+                  FEE MANAGEMENT
+                </p>
+
+                <h2
+                  style={{
+                    margin: '4px 0',
+                  }}
+                >
+                  Assign Fee
+                </h2>
+
+                <span
+                  style={{
+                    opacity: 0.65,
+                    fontSize: 13,
+                  }}
+                >
+                  No email typing needed.
+                </span>
+              </div>
+
+              <button
+                type="button"
+                onClick={closeAssignFeeModal}
+                disabled={savingFee}
+                style={{
+                  border: 'none',
+                  background: 'transparent',
+                  color: 'inherit',
+                  cursor: savingFee
+                    ? 'not-allowed'
+                    : 'pointer',
+                  padding: 8,
+                  opacity: savingFee ? 0.5 : 1,
+                }}
+              >
+                <X size={22} />
+              </button>
+            </div>
+
+            <div
+              style={{
+                display: 'grid',
+                gap: 14,
+              }}
+            >
+              <label
+                style={{
+                  display: 'grid',
+                  gap: 7,
+                  fontSize: 13,
+                  fontWeight: 700,
+                }}
+              >
+                Student
+
+                {selectedFeeStudent ? (
+                  <div
+                    style={{
+                      padding: '12px 13px',
+                      borderRadius: 10,
+                      border: '1px solid rgba(59,130,246,0.25)',
+                      background: 'rgba(59,130,246,0.08)',
+                    }}
+                  >
+                    <strong
+                      style={{
+                        display: 'block',
+                        fontSize: 15,
+                      }}
+                    >
+                      {selectedFeeStudent.full_name}
+                    </strong>
+                    <span
+                      style={{
+                        display: 'block',
+                        marginTop: 3,
+                        opacity: 0.65,
+                        fontSize: 12,
+                      }}
+                    >
+                      {selectedFeeStudent.email}
+                    </span>
+                  </div>
+                ) : (
+                  <select
+                    value=""
+                    onChange={e => {
+                      const student =
+                        students.find(
+                          item =>
+                            item.id ===
+                            e.target.value
+                        ) || null
+                      setSelectedFeeStudent(
+                        student
+                      )
+                    }}
+                    disabled={savingFee}
+                    style={{
+                      width: '100%',
+                      padding: '12px 13px',
+                      borderRadius: 10,
+                      border: '1px solid rgba(255,255,255,0.12)',
+                      background: '#111827',
+                      color: '#fff',
+                      outline: 'none',
+                    }}
+                  >
+                    <option value="">
+                      Select a student
+                    </option>
+                    {students.map(
+                      student => (
+                        <option
+                          key={student.id}
+                          value={student.id}
+                        >
+                          {student.full_name} — {student.email}
+                        </option>
+                      )
+                    )}
+                  </select>
+                )}
+              </label>
+
+              <label
+                style={{
+                  display: 'grid',
+                  gap: 7,
+                  fontSize: 13,
+                  fontWeight: 700,
+                }}
+              >
+                Total Fee (₹)
+                <input
+                  type="number"
+                  min="1"
+                  step="1"
+                  value={feeAmountInput}
+                  onChange={e =>
+                    setFeeAmountInput(
+                      e.target.value
+                    )
+                  }
+                  placeholder="e.g. 25000"
+                  disabled={savingFee}
+                  style={{
+                    width: '100%',
+                    padding: '12px 13px',
+                    borderRadius: 10,
+                    border: '1px solid rgba(255,255,255,0.12)',
+                    background: '#111827',
+                    color: '#fff',
+                    outline: 'none',
+                    boxSizing: 'border-box',
+                  }}
+                />
+              </label>
+
+              <label
+                style={{
+                  display: 'grid',
+                  gap: 7,
+                  fontSize: 13,
+                  fontWeight: 700,
+                }}
+              >
+                Due Date
+                <input
+                  type="date"
+                  value={feeDueDateInput}
+                  onChange={e =>
+                    setFeeDueDateInput(
+                      e.target.value
+                    )
+                  }
+                  disabled={savingFee}
+                  style={{
+                    width: '100%',
+                    padding: '12px 13px',
+                    borderRadius: 10,
+                    border: '1px solid rgba(255,255,255,0.12)',
+                    background: '#111827',
+                    color: '#fff',
+                    outline: 'none',
+                    boxSizing: 'border-box',
+                  }}
+                />
+              </label>
+
+              <label
+                style={{
+                  display: 'grid',
+                  gap: 7,
+                  fontSize: 13,
+                  fontWeight: 700,
+                }}
+              >
+                Description
+                <input
+                  type="text"
+                  value={feeDescriptionInput}
+                  onChange={e =>
+                    setFeeDescriptionInput(
+                      e.target.value
+                    )
+                  }
+                  placeholder="Hostel Fee"
+                  disabled={savingFee}
+                  style={{
+                    width: '100%',
+                    padding: '12px 13px',
+                    borderRadius: 10,
+                    border: '1px solid rgba(255,255,255,0.12)',
+                    background: '#111827',
+                    color: '#fff',
+                    outline: 'none',
+                    boxSizing: 'border-box',
+                  }}
+                />
+              </label>
+            </div>
+
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'flex-end',
+                gap: 10,
+                marginTop: 22,
+              }}
+            >
+              <button
+                type="button"
+                onClick={closeAssignFeeModal}
+                disabled={savingFee}
+              >
+                Cancel
+              </button>
+
+              <button
+                type="button"
+                onClick={saveFee}
+                disabled={
+                  savingFee ||
+                  !selectedFeeStudent ||
+                  !feeAmountInput.trim()
+                }
+              >
+                {savingFee
+                  ? 'Assigning...'
+                  : 'Assign Fee'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* =================================================
           ROOM MEMBERS MODAL
