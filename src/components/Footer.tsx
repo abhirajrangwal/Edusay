@@ -18,6 +18,22 @@ function Footer() {
         <a href="#contact">Contact</a>
       </div>
 
+      <div className="footer-contact">
+        <p>
+          <strong>Email:</strong>{' '}
+          <a href="abhirajrangwal01@gmail.com">
+            abhirajrangwal01@gmail.com
+          </a>
+        </p>
+
+        <p>
+          <strong>Mobile:</strong>{' '}
+          <a href="Mob:+918432412007">
+            +91 84324 12007
+          </a>
+        </p>
+      </div>
+
       <div className="footer-bottom">
         © 2026 EduStay Portal. All rights reserved.
       </div>

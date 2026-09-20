@@ -49,7 +49,7 @@ function Stats() {
   return (
     <section className="stats-section">
       <Reveal className="stats">
-        <Counter value={500} suffix="+" label="Students" />
+        <Counter value={150} suffix="+" label="Students" />
         <Counter value={100} suffix="+" label="Rooms" />
         <Counter value={24} suffix="/7" label="Complaint Tracking" />
         <Counter value={100} suffix="%" label="Digital Records" />
